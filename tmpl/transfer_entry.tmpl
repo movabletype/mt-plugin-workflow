@@ -1,0 +1,45 @@
+<TMPL_INCLUDE NAME="header.tmpl">
+
+<TMPL_IF NAME=AUTHOR_LOOP>
+
+<h2>Transfer Entry Ownership</h2>
+
+<p>Transfer ownership of "<TMPL_VAR NAME=ENTRY_TITLE>" to:</p>
+
+<form method="post" action="<TMPL_VAR NAME=WORKFLOW_URL>">
+<input type="hidden" name="entry_id" value="<TMPL_VAR NAME=ENTRY_ID>"/>
+<input type="hidden" name="__mode" value="transfer_entry" />
+
+<div class="field">
+<h4><label for="new_author_id">New Owner:</label>
+
+<select name="new_author_id">
+<TMPL_LOOP NAME=AUTHOR_LOOP>
+<option value="<TMPL_VAR NAME=AUTHOR_ID>"><TMPL_VAR NAME=AUTHOR_NAME></option>
+</TMPL_LOOP>
+</select>
+</select>
+</h4>
+<p>Select an author to be the new owner of this entry.</p>
+</div>
+
+<hr />
+
+<input type="submit" value=" Transfer "/>
+
+</form>
+<TMPL_ELSE>
+
+<TMPL_IF NAME="CAN_EDIT_ENTRY">
+
+<h4 class="message">No other authors available to take over the entry.</h4>
+
+<TMPL_ELSE>
+
+<h4 class="error-message">You do not currently have access to alter this entry.</h4>
+
+</TMPL_IF>
+
+</TMPL_IF>
+
+<TMPL_INCLUDE NAME="footer.tmpl">

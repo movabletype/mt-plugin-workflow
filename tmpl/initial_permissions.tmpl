@@ -1,0 +1,37 @@
+<TMPL_INCLUDE NAME="header.tmpl">
+
+<h2>Set Workflow Permissions</h2>
+
+<p><i><TMPL_VAR NAME=BLOG_NAME></i> does not currently have any workflow permissions defined. (Authors who have permission to edit all posts are considered Editors.)</p>
+
+
+<TMPL_LOOP NAME=SETUP_OPTIONS>
+<h4><TMPL_VAR NAME=NAME>:</h4>
+<p><TMPL_VAR NAME=DESC></p>
+</TMPL_LOOP>
+
+<hr />
+
+<form method="post" action="<TMPL_VAR NAME=WORKFLOW_URL>">
+<input type="hidden" name="__mode" value="build_initial_perms" />
+<input type="hidden" name="blog_id" value="<TMPL_VAR NAME=BLOG_ID>" />
+
+<div class="field">
+<h4><label for="perm_option">Workflow Options:</label>
+<select name="perm_option">
+<TMPL_LOOP NAME=SETUP_OPTIONS>
+<option value="<TMPL_VAR NAME=NAME>"><TMPL_VAR NAME=NAME></option>
+</TMPL_LOOP>
+</select>
+</h4>
+<p>Select publishing permissions for editors and authors.</p>
+</div>
+
+<hr />
+
+
+
+<input type="submit" value=" Define Permissions " />
+</form>
+
+<TMPL_INCLUDE NAME="footer.tmpl">
