@@ -1,0 +1,212 @@
+<TMPL_IF NAME=IS_POWER_EDIT>
+<TMPL_INCLUDE NAME="header-popup.tmpl">
+<TMPL_ELSE>
+<TMPL_INCLUDE NAME="header.tmpl">
+</TMPL_IF>
+
+<h2><MT_TRANS phrase="List &amp; Edit Entries"></h2>
+
+<script type="text/javascript">
+<!--
+
+var va = new Array;
+va['status'] = new Array;
+va['status'][0] = new MTChoice('<MT_TRANS phrase="Draft">', 1);
+va['status'][1] = new MTChoice('<MT_TRANS phrase="Publish">', 2);
+va['status'][2] = new MTChoice('<MT_TRANS phrase="Future">',4);
+va['author_id'] = new Array;
+<TMPL_LOOP NAME=AUTHOR_LOOP>
+va['author_id'][<TMPL_VAR NAME=AUTHOR_INDEX>] = new MTChoice('<TMPL_VAR NAME=AUTHOR_NAME>', <TMPL_VAR NAME=AUTHOR_ID>);
+</TMPL_LOOP>
+va['category_id'] = new Array;
+<TMPL_LOOP NAME=CATEGORY_LOOP>
+va['category_id'][<TMPL_VAR NAME=CATEGORY_INDEX>] = new MTChoice('<TMPL_VAR NAME=CATEGORY_LABEL_JS>', <TMPL_VAR NAME=CATEGORY_ID>);
+</TMPL_LOOP>
+
+function MTChoice (label, id) {
+    this.label = label;
+    this.id = id;
+}
+
+function setMenu (f) {
+    var s = f.filter_val;
+    s.options[0] = new Option('<MT_TRANS phrase="Select">', '');
+    s.length = 1;
+    var w = f.filter.options[f.filter.selectedIndex].value;
+    if (va[w] == null) return;
+    var m = va[w];
+    for (i=0; i<m.length; i++)
+        s.options[i+1] = new Option(m[i].label, m[i].id);
+    s.length = m.length + 1;
+}
+
+//-->
+</script>
+
+<p>
+<TMPL_IF NAME=IS_POWER_EDIT>
+<MT_TRANS phrase="_USAGE_LIST_POWER" params="<TMPL_VAR NAME=BLOG_NAME ESCAPE=HTML>">
+<TMPL_ELSE>
+<MT_TRANS phrase="_USAGE_LIST" params="<TMPL_VAR NAME=BLOG_NAME ESCAPE=HTML>">
+(<a href="#" onclick="window.open('<TMPL_VAR NAME=SCRIPT_URL>?__mode=list_entries&amp;blog_id=<TMPL_VAR NAME=BLOG_ID>&amp;is_power_edit=1', 'batch', 'width=755,height=600,scrollbars=yes,resizable=yes');return false;"><MT_TRANS phrase="Open power-editing mode"></a>)
+</TMPL_IF>
+</p>
+
+<TMPL_IF NAME=SAVED>
+<div class="message"><MT_TRANS phrase="Your changes have been saved."> <TMPL_INCLUDE NAME="rebuild-stub.tmpl"></div>
+</TMPL_IF>
+
+<TMPL_IF NAME=SAVED_DELETED>
+<div class="message"><MT_TRANS phrase="Your entry has been deleted from the database."> <TMPL_INCLUDE NAME="rebuild-stub.tmpl"></div>
+</TMPL_IF>
+
+<h5><MT_TRANS phrase="Filter Options"></h5>
+
+<div id="filters">
+<form method="get" action="<TMPL_VAR NAME=SCRIPT_URL>">
+<input type="hidden" name="__mode" value="list_entries" />
+<input type="hidden" name="blog_id" value="<TMPL_VAR NAME=BLOG_ID>" />
+<TMPL_IF NAME=IS_POWER_EDIT>
+<input type="hidden" name="is_power_edit" value="1" />
+</TMPL_IF>
+
+<MT_TRANS phrase="Show entries where">&nbsp;
+<select name="filter" onChange="setMenu(this.form)">
+<option value=""><MT_TRANS phrase="Select"></option>
+<option value="category_id"><MT_TRANS phrase="Category"></option>
+<option value="author_id"><MT_TRANS phrase="Author"></option>
+<option value="status"><MT_TRANS phrase="Post Status"></option>
+</select>&nbsp;
+<MT_TRANS phrase="is">&nbsp;
+<select name="filter_val">
+<option value=""><MT_TRANS phrase="Select"></option>
+</select>&nbsp;
+<input type="submit" value="<MT_TRANS phrase="Filter">" />&nbsp;
+
+<TMPL_IF NAME=FILTER>
+<hr />
+<MT_TRANS phrase="Currently showing entries where">
+'<MT_TRANS phrase="<TMPL_VAR NAME=FILTER>">'
+<MT_TRANS phrase="is">
+'<TMPL_VAR NAME=FILTER_VAL ESCAPE=HTML>'.&nbsp;<input type="button" name="reset_filter" value="<MT_TRANS phrase="Reset Filter">" onclick="window.location='<TMPL_VAR NAME=SCRIPT_URL>?__mode=list_entries&amp;blog_id=<TMPL_VAR NAME=BLOG_ID><TMPL_IF NAME=IS_POWER_EDIT>&amp;is_power_edit=1</TMPL_IF>'" />
+</TMPL_IF>
+
+</form>
+</div>
+
+<TMPL_IF NAME=IS_POWER_EDIT>
+<form method="post" action="<TMPL_VAR NAME=SCRIPT_URL>">
+<input type="hidden" name="__mode" value="save_entries" />
+<input type="hidden" name="blog_id" value="<TMPL_VAR NAME=BLOG_ID>" />
+<input type="hidden" name="offset" value="<TMPL_VAR NAME=OFFSET>" />
+<input type="hidden" name="limit" value="<TMPL_VAR NAME=LIMIT>" />
+<input type="hidden" name="filter_args" value="<TMPL_VAR NAME=FILTER_ARGS>" />
+
+<TMPL_ELSE>
+<form action="<TMPL_VAR NAME=SCRIPT_URL>" onsubmit="return false;">
+</TMPL_IF>
+
+<input type="hidden" name="magic_token" value="<TMPL_VAR NAME=MAGIC_TOKEN>" />
+
+<div class="list">
+<table cellspacing="0">
+
+<tr>
+<th width="35%"><MT_TRANS phrase="Title"></th>
+<th width="20%"><MT_TRANS phrase="Category"></th>
+<th width="15%"><MT_TRANS phrase="Date"></th>
+<th width="15%"><MT_TRANS phrase="Author"></th>
+<th width="10%"><MT_TRANS phrase="Status"></th>
+<th width="5%"><MT_TRANS phrase="Delete"></th>
+</tr>
+
+<TMPL_LOOP NAME=OBJECT_LOOP>
+<tr class="<TMPL_IF NAME=IS_ODD>odd<TMPL_ELSE>even</TMPL_IF>">
+<td><TMPL_IF NAME=HAS_EDIT_ACCESS><TMPL_IF NAME=IS_POWER_EDIT><input name="title_<TMPL_VAR NAME=ID>" value="<TMPL_VAR NAME=TITLE ESCAPE=HTML>" /><TMPL_ELSE><a href="<TMPL_VAR NAME=SCRIPT_URL>?__mode=view&amp;_type=entry&amp;id=<TMPL_VAR NAME=ID>&amp;blog_id=<TMPL_VAR NAME=BLOG_ID>"><TMPL_VAR NAME=TITLE_SHORT></a></TMPL_IF><TMPL_ELSE><TMPL_VAR NAME=TITLE_SHORT></TMPL_IF></td>
+<td>
+<TMPL_IF NAME=IS_EDITABLE>
+<select name="category_id_<TMPL_VAR NAME=ID>">
+<option value=""><MT_TRANS phrase="None"></option>
+<TMPL_LOOP NAME=ROW_CATEGORY_LOOP>
+<option value="<TMPL_VAR NAME=CATEGORY_ID>"<TMPL_IF NAME=CATEGORY_IS_SELECTED> selected="selected"</TMPL_IF>><TMPL_VAR NAME=CATEGORY_LABEL_SPACER><TMPL_VAR NAME=CATEGORY_LABEL></option>
+</TMPL_LOOP>
+</select>
+<TMPL_ELSE>
+<TMPL_IF NAME=CATEGORY_NAME><TMPL_VAR NAME=CATEGORY_NAME><TMPL_ELSE>&nbsp;</TMPL_IF>
+</TMPL_IF>
+</td>
+<td><TMPL_IF NAME=IS_EDITABLE><input name="created_on_<TMPL_VAR NAME=ID>" value="<TMPL_VAR NAME=CREATED_ON_TIME_FORMATTED>" /><TMPL_ELSE><TMPL_VAR NAME=CREATED_ON_FORMATTED></TMPL_IF></td>
+<td>
+<TMPL_IF NAME=IS_EDITABLE>
+<select name="author_id_<TMPL_VAR NAME=ID>">
+<option value=""><MT_TRANS phrase="None"></option>
+<TMPL_LOOP NAME=ROW_AUTHOR_LOOP>
+<option value="<TMPL_VAR NAME=AUTHOR_ID>"<TMPL_IF NAME=AUTHOR_IS_SELECTED> selected="selected"</TMPL_IF>><TMPL_VAR NAME=AUTHOR_NAME></option>
+</TMPL_LOOP>
+</select>
+<TMPL_ELSE>
+<TMPL_VAR NAME=AUTHOR_NAME>
+</TMPL_IF>
+</td>
+<td>
+<TMPL_IF NAME=IS_EDITABLE>
+<input type="hidden" name="status_<TMPL_VAR NAME=ID>" value="<TMPL_IF NAME=STATUS_DRAFT>1<TMPL_ELSE><TMPL_IF NAME=STATUS_PUBLISH>2<TMPL_ELSE><TMPL_IF NAME=STATUS_FUTURE>4</TMPL_IF></TMPL_IF></TMPL_IF>" />
+<TMPL_VAR NAME=STATUS_TEXT>
+<TMPL_ELSE>
+<TMPL_VAR NAME=STATUS_TEXT>
+</TMPL_IF>
+</td>
+<td><TMPL_IF NAME=HAS_EDIT_ACCESS><input type="checkbox" name="id" value="<TMPL_VAR NAME=ID>" /></TMPL_IF></td>
+</tr>
+
+</TMPL_LOOP>
+
+</table>
+</div>
+
+<TMPL_IF NAME=IS_POWER_EDIT>
+<div style="float: left">
+<input type="submit" value="<MT_TRANS phrase="Save">" />
+</div>
+</TMPL_IF>
+
+<div align="right">
+<input type="button" onclick="doCheckAll(this.form,true)" name="check_all" value="<MT_TRANS phrase="Check All">" />
+<input type="button" onclick="doCheckAll(this.form,false)" name="uncheck_all" value="<MT_TRANS phrase="Uncheck All">" />
+<input type="button" onClick="doRemoveItems(this.form, 'entry&amp;blog_id=<TMPL_VAR NAME=BLOG_ID><TMPL_IF NAME=IS_POWER_EDIT>&amp;is_power_edit=1</TMPL_IF>', 'entries')" name="delete_entries" value="<MT_TRANS phrase="Delete">" />
+</div>
+
+</form>
+
+<hr />
+
+<div align="right">
+<form action="<TMPL_VAR NAME=SCRIPT_URL>" onsubmit="return false;">
+<TMPL_IF NAME=PREV_OFFSET>
+<input type="button" onclick="window.location='<TMPL_VAR NAME=SCRIPT_URL>?__mode=list_entries&amp;blog_id=<TMPL_VAR NAME=BLOG_ID>&amp;<TMPL_IF NAME=IS_POWER_EDIT>is_power_edit=1&amp;</TMPL_IF>limit=' + this.form.limit.options[this.form.limit.selectedIndex].value + '&amp;offset=<TMPL_VAR NAME=PREV_OFFSET_VAL><TMPL_VAR NAME=FILTER_ARGS>'" value="<MT_TRANS phrase="Previous [_1]" params="<TMPL_VAR NAME=LIMIT>">" />
+</TMPL_IF>
+<select name="limit" onchange="window.location='<TMPL_VAR NAME=SCRIPT_URL>?__mode=list_entries&amp;blog_id=<TMPL_VAR NAME=BLOG_ID>&amp;<TMPL_IF NAME=IS_POWER_EDIT>is_power_edit=1&amp;</TMPL_IF>limit=' + this.options[this.selectedIndex].value + '<TMPL_VAR NAME=FILTER_ARGS>'">
+<option value="5"<TMPL_IF NAME=LIMIT_5> selected="selected"</TMPL_IF>><MT_TRANS phrase="[quant,_1,entry,entries]" params="5"></option>
+<option value="20"<TMPL_IF NAME=LIMIT_20> selected="selected"</TMPL_IF>><MT_TRANS phrase="[quant,_1,entry,entries]" params="20"></option>
+<option value="75"<TMPL_IF NAME=LIMIT_75> selected="selected"</TMPL_IF>><MT_TRANS phrase="[quant,_1,entry,entries]" params="75"></option>
+<option value="125"<TMPL_IF NAME=LIMIT_125> selected="selected"</TMPL_IF>><MT_TRANS phrase="[quant,_1,entry,entries]" params="125"></option>
+<option value="none"<TMPL_IF NAME=LIMIT_NONE> selected="selected"</TMPL_IF>><MT_TRANS phrase="all entries"></option>
+</select>
+<TMPL_IF NAME=NEXT_OFFSET>
+<input type="button" onclick="window.location='<TMPL_VAR NAME=SCRIPT_URL>?__mode=list_entries&amp;blog_id=<TMPL_VAR NAME=BLOG_ID>&amp;<TMPL_IF NAME=IS_POWER_EDIT>is_power_edit=1&amp;</TMPL_IF>limit=' + this.form.limit.options[this.form.limit.selectedIndex].value + '&amp;offset=<TMPL_VAR NAME=NEXT_OFFSET_VAL><TMPL_VAR NAME=FILTER_ARGS>'" value="<MT_TRANS phrase="Next [_1]" params="<TMPL_VAR NAME=LIMIT>">" />
+</TMPL_IF>
+</form>
+</div>
+
+<TMPL_IF NAME=PLUGIN_ACTION_LOOP>
+Plugin actions: <br />
+<TMPL_LOOP NAME=PLUGIN_ACTION_LOOP>
+<a href="<TMPL_VAR NAME=PAGE>&amp;from=list_entries;blog_id=<TMPL_VAR NAME=BLOG_ID>"><TMPL_VAR NAME=LINK_TEXT></a> <br />
+</TMPL_LOOP>
+</TMPL_IF>
+
+<TMPL_IF NAME=IS_POWER_EDIT>
+<TMPL_INCLUDE NAME="footer-popup.tmpl">
+<TMPL_ELSE>
+<TMPL_INCLUDE NAME="footer.tmpl">
+</TMPL_IF>

@@ -1,0 +1,10 @@
+<div class="setting">
+<div class="label">Publishers:</div>
+<div class="field">
+<ul>
+<TMPL_LOOP NAME=AUTHORS_LOOP>
+<li><input type="checkbox" name="workflow_can_publish" id="workflow_can_publish_<TMPL_VAR NAME=AUTHOR_ID>" value="<TMPL_VAR NAME=AUTHOR_ID>" <TMPL_IF NAME=AUTHOR_CAN_PUBLISH>checked="checked"</TMPL_IF> /><TMPL_VAR NAME=AUTHOR_NAME></li>
+</TMPL_LOOP>
+</ul>
+</div>
+</div>
