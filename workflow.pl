@@ -15,17 +15,17 @@ use Data::Dumper;
 
 use strict;
 
-use lib 'plugins/Workflow/lib';
+use lib './lib';
 
 sub BEGIN {
-    $VERSION = '@VERSION@';
+    $VERSION = '1.5';
     $plugin = MT::Plugin::Workflow->new ({
             name		=> 'Workflow',
             version		=> $VERSION,
             description	=> 'Workflow can limit publishing rights to editors, can limit specified authors to posting only drafts, and lets an author pass ownership of an entry to any other author or editor with appropriate permissions.  Authors are notified when ownership of an entry is transferred.',
-            plugin_link	=> 'http://www.rayners.org/plugins/workflow/',
-            author_name	=> 'David Raynes',
-            author_link	=> 'http://www.rayners.org/',
+            plugin_link	=> 'http://www.apperceptive.com/plugins/workflow/',
+            author_name	=> 'Apperceptive, LLC',
+            author_link	=> 'http://www.apperceptive.com/',
             blog_config_template	=> 'blog_config.tmpl',
             settings		=> new MT::PluginSettings ([
                 ['can_publish', { Default => undef, Scope => 'blog' }],
