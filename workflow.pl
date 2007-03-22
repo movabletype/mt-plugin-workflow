@@ -17,32 +17,41 @@ use strict;
 
 use lib './lib';
 
-sub BEGIN {
-    $VERSION = '1.5';
-    $plugin = MT::Plugin::Workflow->new ({
-            name		=> 'Workflow',
-            version		=> $VERSION,
-            description	=> 'Workflow can limit publishing rights to editors, can limit specified authors to posting only drafts, and lets an author pass ownership of an entry to any other author or editor with appropriate permissions.  Authors are notified when ownership of an entry is transferred.',
-            plugin_link	=> 'http://www.apperceptive.com/plugins/workflow/',
-            author_name	=> 'Apperceptive, LLC',
-            author_link	=> 'http://www.apperceptive.com/',
-            blog_config_template	=> 'blog_config.tmpl',
-            settings		=> new MT::PluginSettings ([
-                ['can_publish', { Default => undef, Scope => 'blog' }],
-                ]),
-            });
-    MT->add_plugin ($plugin);
+$VERSION = '1.5';
+$plugin = MT::Plugin::Workflow->new ({
+        name		=> 'Workflow',
+        version		=> $VERSION,
+        description	=> 'Workflow can limit publishing rights to editors, can limit specified authors to posting only drafts, and lets an author pass ownership of an entry to any other author or editor with appropriate permissions.  Authors are notified when ownership of an entry is transferred.',
+        plugin_link	=> 'http://www.apperceptive.com/plugins/workflow/',
+        author_name	=> 'Apperceptive, LLC',
+        author_link	=> 'http://www.apperceptive.com/',
+        blog_config_template	=> 'blog_config.tmpl',
+        settings		=> new MT::PluginSettings ([
+            ['can_publish', { Default => undef, Scope => 'blog' }],
+            ]),
+            
+        callbacks   => {
+            'CMSPostSave.entry'  => {
+                priority    => 1,
+                code        => \&entry_save,
+            },
+            
+            'Workflow::CanPublish'      => \&can_publish,
+            'Workflow::PostTransfer'    => \&post_transfer,
+        },
+        
+        });
+MT->add_plugin ($plugin);
 
-    if (MT->version_number < 3.3) {
-        MT->add_callback ('AppPostEntrySave', 1, $plugin, \&entry_save);
-    }
-    else {
-        MT->add_callback('CMSPostSave.entry', 1, $plugin, \&entry_save);
-    }
-    MT->add_callback ('Workflow::CanPublish', 1, $plugin, \&can_publish);
-    MT->add_callback ('Workflow::PostTransfer', 1, $plugin, \&post_transfer);
+# if (MT->version_number < 3.3) {
+#     MT->add_callback ('AppPostEntrySave', 1, $plugin, \&entry_save);
+# }
+# else {
+#     MT->add_callback('CMSPostSave.entry', 1, $plugin, \&entry_save);
+# }
+# MT->add_callback ('Workflow::CanPublish', 1, $plugin, \&can_publish);
+# MT->add_callback ('Workflow::PostTransfer', 1, $plugin, \&post_transfer);
 
-}
 
 sub init_app {
     my $plugin = shift;
@@ -244,15 +253,12 @@ sub workflow_update_entry_status {
 sub can_publish {
     my ($eh, $app, $author, $entry) = @_;
 
-    require MT::PluginData;
-    my $publish_perms = MT::PluginData->load ({ plugin => 'Workflow',
-            key => $entry->blog_id });
+    my $publish_perms = $plugin->get_config_value ('can_publish', 'blog:' . $entry->blog_id);
 
-# Unless we know otherwise, let them publish!
+    # Unless we know otherwise, let them publish!
     return 1 unless ($publish_perms);
-
-    my $perms = $publish_perms->data;
-    return (exists $perms->{$author->id} && exists $perms->{$author->id}->{'can_publish'});
+    
+    return $publish_perms->{$author->id};
 }
 
 
@@ -260,11 +266,16 @@ sub entry_save {
     my ($eh, $app, $e) = @_;
     my $author = $app->{author};
 
-    require Workflow;
-    Workflow->load_plugins;
+    # require Workflow;
+    # Workflow->load_plugins;
+    # 
+    # print STDERR "Loaded plugins\n";
     if ($e->status != MT::Entry::HOLD &&
             !MT->run_callbacks ('Workflow::CanPublish', $app, $author, $e)) {
-        $e->status (MT::Entry::HOLD());
+
+        # Can't publish, so set the entry status to unpublished, save the entry
+        # And call the publish attempt callback
+        $e->status (MT::Entry::HOLD);
         $e->save;
         MT->run_callbacks('Workflow::PostPublishAttempt', $app, $author, $e);
     }
