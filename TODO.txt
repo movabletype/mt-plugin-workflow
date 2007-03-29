@@ -1,0 +1,3 @@
+_ Add transformer callback to insert entry creator column into entry listings
+_ Add transformer callback to alter the entry status dropdown in the entry edit page (to what? remove Scheduled? change "Published" to "Finished" for folks who cannot publish?)
+_ Clean up old unused cruft

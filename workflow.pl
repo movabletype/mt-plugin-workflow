@@ -27,8 +27,18 @@ $plugin = MT::Plugin::Workflow->new ({
         author_link	=> 'http://www.apperceptive.com/',
         blog_config_template	=> 'blog_config.tmpl',
         settings		=> new MT::PluginSettings ([
-            ['can_publish', { Default => undef, Scope => 'blog' }],
-            ]),
+            # Hash where the keys are author ids that have been checked in the plugin config
+            # (though not necessarily that can publish, as the plugin may be extended via callbacks)
+            # (this is just the default list)
+            [ 'can_publish', { Default => undef, Scope => 'blog' } ],
+            
+            # Whether or not email notifications should be sent out for transfer and publish attempts
+            [ 'email_notification', { Default => 1, Scope => 'blog'} ],
+            
+            # Automatically transfer an entry that was publish attempted to the first available editor
+            # Where "first available" is defined as the editor with the most recent published entry
+            [ 'automatic_transfer', { Default => 0, Scope => 'blog'} ],
+        ]),
             
         callbacks   => {
             'CMSPostSave.entry'  => {
@@ -36,22 +46,22 @@ $plugin = MT::Plugin::Workflow->new ({
                 code        => \&entry_save,
             },
             
-            'Workflow::CanPublish'      => \&can_publish,
-            'Workflow::PostTransfer'    => \&post_transfer,
+            'Workflow::CanPublish'          => \&can_publish,
+            'Workflow::CanTransfer'         => \&can_transfer,
+            'Workflow::PostTransfer'        => \&post_transfer,
+            'Workflow::PostPublishAttempt'  => \&post_publish_attempt,
         },
         
-        });
+        
+        template_tags   => {
+            map { 
+                my $old_tag = 'EntryAuthor' . $_;
+                my $new_tag = 'EntryCreator' . $_;
+                $new_tag => sub { workflow_tag_runner ( $old_tag , @_ ) }
+            } ( '', 'DisplayName', 'Email', 'Link', 'Nickname', 'URL', 'Username'),
+        },
+});
 MT->add_plugin ($plugin);
-
-# if (MT->version_number < 3.3) {
-#     MT->add_callback ('AppPostEntrySave', 1, $plugin, \&entry_save);
-# }
-# else {
-#     MT->add_callback('CMSPostSave.entry', 1, $plugin, \&entry_save);
-# }
-# MT->add_callback ('Workflow::CanPublish', 1, $plugin, \&can_publish);
-# MT->add_callback ('Workflow::PostTransfer', 1, $plugin, \&post_transfer);
-
 
 sub init_app {
     my $plugin = shift;
@@ -60,11 +70,12 @@ sub init_app {
     if ($app->isa ('MT::App::CMS')) {
         $app->add_itemset_action ({
                 type	=> 'entry',
-                key	=> 'workflow_transfer',
+                key	    => 'workflow_transfer',
                 label	=> 'Workflow transfer',
                 code	=> sub { transfer_entries ($plugin, @_) },
                 });
     }
+    
 }
 
 sub _default_perms {
@@ -250,6 +261,7 @@ sub workflow_update_entry_status {
     $app->call_return;
 }
 
+# The default publish checker: if the user is in the plugin config's can_publish hash, they can publish
 sub can_publish {
     my ($eh, $app, $author, $entry) = @_;
 
@@ -261,15 +273,23 @@ sub can_publish {
     return $publish_perms->{$author->id};
 }
 
+# The default transfer checker: make sure the new author can post to the entry's blog
+sub can_transfer {
+    my ($eh, $app, $entry, $new_author, $user) = @_;
+    
+    require MT::Permission;
+    my $perm = MT::Permission->load ({ author_id => $new_author->id, blog_id => $entry->blog_id });
+    
+    return $perm && $perm->can_post;
+}
+
 
 sub entry_save {
     my ($eh, $app, $e) = @_;
     my $author = $app->{author};
 
-    # require Workflow;
-    # Workflow->load_plugins;
-    # 
-    # print STDERR "Loaded plugins\n";
+    # If the entry is *not* set to draft, and the current user cannot publish
+    # keep the entry from being published
     if ($e->status != MT::Entry::HOLD &&
             !MT->run_callbacks ('Workflow::CanPublish', $app, $author, $e)) {
 
@@ -283,6 +303,8 @@ sub entry_save {
 
 sub post_transfer {
     my ($eh, $app, $e, $old_a, $auth) = @_;
+
+    return 1 if (!$plugin->get_config_value ('email_notification', 'blog:' . $e->blog_id));
 
     require MT::Entry;
     my $a = $e->author;
@@ -304,8 +326,6 @@ sub post_transfer {
         my $edit_url = $base . '?__mode=view&blog_id=' . $e->blog_id
             . '&_type=entry&id=' . $e->id;
 
-        require Workflow;
-        Workflow->load_plugins;
         my $can_publish = MT->run_callbacks ('Workflow::CanPublish', $app, $a, $e);
 
         my %params = (
@@ -326,17 +346,139 @@ sub post_transfer {
     }
 }
 
-### Template Tags
+# Get a list of eligible editors based on a given entry
+sub _get_editors {
+    my $plugin = shift;
+    my ($app, $entry) = @_;
+    
+    my $blog = $entry->blog;
+    
+    require MT::Permission;
+    my @perms = MT::Permission->load ({ blog_id => $blog->id });
+    
+    require MT::Author;
+    return ( grep { MT->run_callbacks ('Workflow::CanPublish', $app, $_, $entry) } map { MT::Author->load ($_->author_id) } @perms );
+}
 
-MT::Template::Context->add_tag ( EntryCreator => \&entry_creator );
-MT::Template::Context->add_tag ( EntryCreatorEmail => \&entry_creator_email );
-MT::Template::Context->add_tag ( EntryCreatorURL => \&entry_creator_url );
-MT::Template::Context->add_tag ( EntryCreatorLink => \&entry_creator_link );
-MT::Template::Context->add_tag ( EntryCreatorNickname => \&entry_creator_nick );
-MT::Template::Context->add_tag ( EntryCreatorDisplayName =>
-        \&entry_creator_display_name );
-MT::Template::Context->add_tag ( EntryCreatorUsername =>
-        \&entry_creator_username );
+# Perform the actual entry transfer
+sub _transfer_entry {
+    my $plugin = shift;
+    my ($eh, $app, %params) = @_;
+    my $entry = $params{Entry};
+    my $new_author = $params{To};
+    
+    # Grab the old author
+    # and delete the cached version(s)
+    my $old_author = $entry->author;
+    delete $entry->{__author};          # For MT
+    delete $entry->{__cache}{author};   # For MTE
+    
+    # Set the updated author_id
+    # and record the original entry creator if there wasn't one already
+    $entry->author_id ($new_author->id);
+    $entry->created_by ($old_author->id) if (!$entry->created_by);
+    
+    # And save the entry
+    $entry->save or return $eh->error ("Error saving transferred entry: " . $entry->errstr);
+}
+
+sub transfer_entry {
+    my $plugin = shift;
+    my ($eh, $app, %params) = @_;
+    
+    my $entry = $params{Entry};
+    my $new_author = $params{To};
+    
+    # If the current user can transfer this particular entry to this particular author
+    if (MT->run_callbacks ('Workflow::CanTransfer', $app, $entry, $new_author, $app->user)) {
+        
+        # Grab the current author
+        my $old_author = $entry->author;
+        
+        # Why separate CanTransfer from PreTransfer?  I'm honestly not sure
+        # Probably because it will allow callback writers to assume that the transfer has been approved
+        # by the time the PreTransfer callback is made.
+        # That is not an assumption that can be made in CanTransfer as a later callback might kick back a disapproval
+        MT->run_callbacks ('Workflow::PreTransfer', $app, $entry, $new_author, $app->user);
+        
+        # Perform the actual entry transfer
+        $plugin->_transfer_entry ($eh, $app, %params) or return $eh->error ($eh->errstr);
+        
+        $app->log ("Entry #".$entry->id." transferred from '".$old_author->name.
+                "' to '".$new_author->name."' by '".$app->{author}->name."'");
+        
+        # Run the PostTransfer callbacks
+        MT->run_callbacks ('Workflow::PostTransfer', $app, $entry, $new_author, $app->user);
+        
+        # Entry was successfully transfereed, so return a true value
+        return 1;
+    }
+    else {
+        return $eh->error ("Entry cannot be transfered");
+    }
+}
+
+
+sub _automatic_transfer {
+    my $plugin = shift;
+    my ($eh, $app, $author, $entry) = @_;
+    
+    my @editors = $plugin->_get_editors ($app, $entry);
+    
+    # Only do the fancy bits if there are more than one available editor
+    if (scalar @editors > 1) {
+        require MT::Entry;
+
+        # Build up a hash of author_id => timestamp of latest entry
+        # so that we can sort on it in regular order (i.e. lower numbers, like 0, go first)
+        my %latest_editor_entries = 
+            map { $_->author_id => $_->modified_on }
+            map { MT::Entry->load ({ author_id => $_->id, status => MT::Entry::RELEASE, { sort => 'modified_on', direction => 'descend', limit => 1 } }) } @editors;
+
+        # Sort the editor list based on the latest entry modified_on timestamps
+        # Editors with no published entries will rise to the front of the list as their latest entry dates will be 0/undef
+        @editors = sort { $latest_editor_entries{$a->id} <=> $latest_editor_entries{$b->id} } @editors;
+    }
+    
+    $plugin->transfer_entry ($eh, $app, Entry => $entry, To => $editors[0]) or return $eh->error ($eh->errstr);
+}
+
+sub post_publish_attempt {
+    my ($eh, $app, $author, $entry) = @_;
+    
+    # First check for automatic transfer
+    return $plugin->_automatic_transfer ($eh, $app, $author, $entry) if ($plugin->get_config_value ('automatic_transfer', 'blog:' . $entry->blog_id));
+    
+    # Skip this if email notification is turned off
+    return 1 if (!$plugin->get_config_value ('email_notification', 'blog:' . $entry->blog_id));
+    
+    # First, get a list of all the Editors (i.e. can publish folks) and whatever email addresses they have handy
+    # We cannot just do this with the plugin settings as other plugins may be hooking into the callback
+    # so we'll have to load up every author associated with the blog and loop through to see who gets the email
+    my @editors = $plugin->_get_editors ($app, $entry);
+    
+    my %email_addresses = map { $_->email ? ($_->email => 1) : () } @editors; # Use a hash to eliminate any duplicates
+    my @email_addrs = sort { $a cmp $b } keys %email_addresses;
+    
+    require MT::Mail;
+    my $from_addr = $app->{cfg}->EmailAddressMain || $author->email;
+    my %head = ( To => \@email_addrs,
+            From => $from_addr,
+            Subject => 
+            '[' . $entry->blog->name . '] ' .
+            $app->translate ('Entry Publish Attempted: [_1]', $entry->title)
+            );
+
+    my $charset = $app->{cfg}->PublishCharset || 'iso-8859-1';
+    $head{'Content-Type'} = qq(text/plain; charset="$charset");
+    
+    my $body = $app->build_page ('post_attempt_notification.tmpl', {});
+    
+    require Text::Wrap;
+    $Text::Wrap::columns = 72;
+    $body = Text::Wrap::wrap ('', '', $body, "\n\n");
+    # MT::Mail->send
+}
 
 sub _get_entry_creator {
     my $e = $_[0]->stash ('entry') or return;
@@ -345,65 +487,15 @@ sub _get_entry_creator {
     $a;
 }
 
-sub entry_creator {
-    my $a = &_get_entry_creator (@_)
-        or return $_[0]->_no_entry_error('MTEntryCreator');
+sub workflow_tag_runner {
+    my ($tag, $ctx, $args) = @_;
 
-    $a ? $a->name || '' : '';
-
+    my $a = _get_entry_creator ($ctx, $args)
+        or return $ctx->_no_entry_error ($ctx->stash ('tag'));
+        
+    local $ctx->{__stash}{entry}{__author} = $a;
+    my ($hdlr) = $ctx->handler_for ($tag);
+    $hdlr->($ctx, $args);
 }
 
-sub entry_creator_display_name {
-    my $a = &_get_entry_creator (@_)
-        or return $_[0]->_no_entry_error('MTEntryCreatorDisplayName');
-    $a ? $a->nickname || '' : '';
-}
-
-sub entry_creator_nick {
-    my $a = &_get_entry_creator (@_)
-        or return $_[0]->_no_entry_error('MTEntryCreatorNickname');
-    $a ? $a->nickname || '' : '';  
-}
-
-sub entry_creator_username {
-    my $a = &_get_entry_creator (@_)
-        or return $_[0]->_no_entry_error('MTEntryCreatorUsername');
-    $a ? $a->name || '' : '';
-}
-
-sub entry_creator_email {
-    my $a = &_get_entry_creator (@_)
-        or return $_[0]->_no_entry_error('MTEntryCreatorEmail');
-
-    return '' unless $a && defined $a->email;
-    $_[1] && $_[1]->{'spam_protect'} ? spam_protect($a->email) : $a->email;
-}
-
-sub entry_creator_url {
-    my $a = &_get_entry_creator (@_)
-        or return $_[0]->_no_entry_error('MTEntryCreatorURL');
-
-    $a ? $a->url || "" : "";
-}
-
-sub entry_creator_link {
-    my $a = &_get_entry_creator (@_)
-        or return $_[0]->_no_entry_error('MTEntryCreatorLink');
-
-    my ($ctx, $args) = @_;
-    return '' unless $a;
-    my $name = $a->nickname || '';
-    my $show_email = $args->{ show_email } ? 1 : 0;
-    my $show_url = 1 unless exists $args->{show_url} && !$args->{show_url};
-    my $target = $args->{new_window} ? ' target="_blank"' : '';
-    if ($show_url && $a->url && ($name ne '')) {
-        return sprintf qq(<a href="%s"%s>%s</a>), $a->url, $target, $name;
-    } elsif ($show_email && $a->email && ($name ne '')) {
-        my $str = "mailto:" . $a->email;
-        $str = spam_protect($str) if $args->{'spam_protect'};
-        return sprintf qq(<a href="%s">%s</a>), $str, $name;
-    } else {
-        return $name;
-    }
-}
-
+1;
