@@ -10,7 +10,7 @@ use strict;
 use File::Spec;
 
 sub name { 'Workflow' }
-sub description { 'Workflow can limit publishing rights to editors, can limit specified authors to posting only drafts, and lets an author pass ownership of an entry to any other author or editor with appropriate permissions. Authors are notified when ownership of an entry is transferred. Version @VERSION@' }
+sub description { 'Workflow can limit publishing rights to editors, can limit specified authors to posting only drafts, and lets an author pass ownership of an entry to any other author or editor with appropriate permissions. Authors are notified when ownership of an entry is transferred. Version 1.1.6' }
 
 sub add_setup_option {
   my $wkflw = shift;
