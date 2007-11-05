@@ -1,26 +1,23 @@
-<div class="setting">
-    <div class="label">Publishers:</div>
-    <div class="field">
-        <ul>
-            <TMPL_LOOP NAME=AUTHORS_LOOP>
-            <li><input type="checkbox" name="workflow_can_publish" id="workflow_can_publish_<TMPL_VAR NAME=AUTHOR_ID>" value="<TMPL_VAR NAME=AUTHOR_ID>" <TMPL_IF NAME=AUTHOR_CAN_PUBLISH>checked="checked"</TMPL_IF> /><TMPL_VAR NAME=AUTHOR_NAME></li>
-            </TMPL_LOOP>
-        </ul>
-    </div>
-</div>
+<mtapp:setting
+    id="workflow_can_publish"
+    label="<__trans phrase="Publishers">:">
+    <ul>
+        <mt:loop name="authors_loop">
+        <li><input type="checkbox" class="cb" name="workflow_can_publish" id="workflow_can_publish_<mt:var name="author_id">" value="<mt:var name="author_id">" <mt:if name="author_can_publish">checked="checked"</mt:if> />&nbsp;<mt:var name="author_name"></li>
+        </mt:loop>
+    </ul>
+</mtapp:setting>
 
-<div class="setting">
-    <div class="label"><label for="email_notifications">Email Notifications:</label></div>
-    <div class="field">
-        <input type="checkbox" value="1" name="email_notifications" id="email_notifications" <TMPL_IF NAME=EMAIL_NOTIFICATIONS>checked="checked"</TMPL_IF>/>
-        <p>Send email notifications for entry transfer and publish attempts.</p>
-    </div>
-</div>
+<mtapp:setting
+    id="email_notifications"
+    label="<__trans phrase="Email Notifications">:">
+    <input type="checkbox" class="cb" value="1" name="email_notifications" id="email_notifications" <mt:if name="email_notificaions">checked="checked"</mt:if> />
+    <p class="hint">Send email notifications for entry transfer and publish attempts.</p>
+</mtapp:setting>
 
-<div class="setting">
-    <div class="label"><label for="automatic_transfer">Automatic Editor Transfer:</label></div>
-    <div class="field">
-        <input type="checkbox" class="cb" value="1" name="automatic_transfer" id="automatic_transfer" <TMPL_IF NAME=AUTOMATIC_TRANSFER>checked="checked"</TMPL_IF>/>
-        <p>Automatically transfer entries to first available editor upon publish attempt, where "first available" is defined as the editor with the most recent published entry.</p>
-    </div>
-</div>
+<mtapp:setting
+    id="automatic_transfer"
+    label="<__trans phrase="Automatic Editor Transfer">:">
+    <input type="checkbox" class="cb" value="1" name="automatic_transfer" id="automatic_transfer" <mt:if name="automatic_transfer">checked="checked"</mt:if>/>
+    <p class="hint">Automatically transfer entries to first available editor upon publish attempt, where "first available" is defined as the editor with the most recent published entry.</p>
+</mtapp:setting>

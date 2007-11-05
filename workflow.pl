@@ -1,22 +1,18 @@
 
-
 package MT::Plugin::Workflow;
 
+use strict;
+use warnings;
+
 use base qw( MT::Plugin );
-use vars qw($VERSION $plugin);
-use MT;
-return 1 unless MT->version_number () >= 3.2;
+use MT 4;
 
 use MT::Entry;
 
-use MT::Template::Context;
 use MT::Util qw( spam_protect );
 use Data::Dumper;
 
-use strict;
-
-use lib './lib';
-
+use vars qw($VERSION $plugin);
 $VERSION = '1.5';
 $plugin = MT::Plugin::Workflow->new ({
         name		=> 'Workflow',
@@ -30,7 +26,7 @@ $plugin = MT::Plugin::Workflow->new ({
             # Hash where the keys are author ids that have been checked in the plugin config
             # (though not necessarily that can publish, as the plugin may be extended via callbacks)
             # (this is just the default list)
-            [ 'can_publish', { Default => undef, Scope => 'blog' } ],
+            # [ 'can_publish', { Default => undef, Scope => 'blog' } ],
             
             # Whether or not email notifications should be sent out for transfer and publish attempts
             [ 'email_notification', { Default => 1, Scope => 'blog'} ],
@@ -41,12 +37,11 @@ $plugin = MT::Plugin::Workflow->new ({
         ]),
             
         callbacks   => {
-            'CMSPostSave.entry'  => {
-                priority    => 1,
-                code        => \&entry_save,
-            },
+            # 'CMSPostSave.entry'  => {
+            #     priority    => 1,
+            #     code        => \&entry_save,
+            # },
             
-            'Workflow::CanPublish'          => \&can_publish,
             'Workflow::CanTransfer'         => \&can_transfer,
             'Workflow::PostTransfer'        => \&post_transfer,
             'Workflow::PostPublishAttempt'  => \&post_publish_attempt,
@@ -63,19 +58,178 @@ $plugin = MT::Plugin::Workflow->new ({
 });
 MT->add_plugin ($plugin);
 
-sub init_app {
+sub init_registry {
     my $plugin = shift;
-    my ($app) = (@_);
+    my $reg = {
+        # applications    => {
+        #     cms         => {
+        #         list_actions    => {
+        #             entry       => {
+        #                 'editor_transfer'   => {
+        #                     label   => "Transfer to first available editor",
+        #                     order   => 500,
+        #                     code    => \&editor_transfer,
+        #                     permission  => 'can_post',
+        #                 }
+        #             }
+        #         }
+        #     }
+        # },
+        callbacks   => {
+            'MT::App::CMS::template_source.edit_entry'  => \&edit_entry_source,
+            'MT::App::CMS::template_param.edit_entry'   => \&edit_entry_param,
+            'cms_post_save.entry'                       => \&post_save_entry,
+            
+            'MT::App::CMS::template_source.list_entry'  => \&list_entry_source,
+            'MT::App::CMS::template_param.list_entry'   => \&list_entry_param,
+            
+            'Workflow::CanPublish'          => \&can_publish,
+        },
+        
+        init_app    => {
+            'MT::App::CMS'  => \&init_cms_app,
+        }
+    };
+    $plugin->registry ($reg);
+}
 
-    if ($app->isa ('MT::App::CMS')) {
-        $app->add_itemset_action ({
-                type	=> 'entry',
-                key	    => 'workflow_transfer',
-                label	=> 'Workflow transfer',
-                code	=> sub { transfer_entries ($plugin, @_) },
-                });
+sub init_cms_app {
+    my $plugin = shift;
+    my ($app) = @_;
+    
+    local $SIG{__WARN__} = sub {};
+    my $orig_handler = \&MT::App::CMS::_finish_rebuild_ping;
+    *MT::App::CMS::_finish_rebuild_ping = sub {
+        my $a = shift;
+        my ($entry) = @_;
+        require MT::Request;
+        my $r = MT::Request->instance;
+        if ($r->stash ('workflow_transferred')) {
+            $app->redirect (
+                $app->uri (
+                    mode => 'list_entry',
+                    args    => {
+                        blog_id => $entry->blog_id,
+                        workflow_transferred => 1,
+                    }
+                )
+            );
+        }
+        else {
+            $orig_handler->($app, @_);
+        }
+    }
+}
+
+sub edit_entry_source {
+    my ($cb, $app, $tmpl) = @_;
+    
+    my $new = q{
+        <mt:unless name="status_publish">
+        <mtapp:setting
+            id="workflow_status"
+            label="Workflow Status">
+            <script type="text/javascript">
+                function updateNote() {
+                    var sel = getByID('workflow_status');
+                    var val = sel.options[sel.selectedIndex].value;
+                    if (val > 1) {
+                        TC.removeClassName (getByID('workflow_change_note-field'), 'hidden');                        
+                    }
+                    else {
+                        TC.addClassName (getByID('workflow_change_note-field'), 'hidden');
+                    }
+                }
+            </script>
+            <select name="workflow_status" id="workflow_status" class="full-width" onchange="updateNote();">
+                <option value="1">Unfinished</option>
+                <option value="2">Ready for next step</option>
+                <mt:if name="workflow_has_previous"><option value="3">Return to previous step</option></mt:if>
+            </select>
+        </mtapp:setting>
+        <mtapp:setting
+            id="workflow_change_note"
+            label="Workflow Change Note"
+            shown="0">
+            <textarea type="text" class="full-width short" rows="" cols="" id="workflow_change_note" name="workflow_change_note"></textarea>
+        </mtapp:setting>
+        </mt:unless>
+    };
+    my $old = '<h3><__trans phrase="Publishing"></h3>';
+    
+    $$tmpl =~ s{\Q$old\E}{$old$new}ms;
+}
+
+sub edit_entry_param {
+    my ($cb, $app, $param, $tmpl) = @_;
+    
+    return if (!$param->{id});
+    my $prev_owner = $plugin->_get_previous_owner ($param->{id});
+    
+    $param->{workflow_has_previous} = ($prev_owner && $param->{author_id} != $prev_owner->id);
+}
+
+sub list_entry_source {
+    my ($cb, $app, $tmpl) = @_;
+    my $old = q{    </div>
+</mt:setvarblock>
+<mt:unless name="is_power_edit">};
+    my $new = q{
+        <mt:if name="workflow_transferred">
+            <mtapp:statusmsg
+                id="workflow_transferred"
+                class="success">
+                <__trans phrase="The [_1] has been transferred." params="<mt:var name="object_label">">
+            </mtapp:statusmsg>
+        </mt:if>
+    };
+    
+    $$tmpl =~ s{\Q$old\E}{$new$old}ms;
+}
+
+sub list_entry_param {
+    my ($cb, $app, $param, $tmpl) = @_;
+    $param->{workflow_transferred} = $app->param ('workflow_transferred');
+}
+
+sub post_save_entry {
+    my ($cb, $app, $obj, $orig) = @_;
+    
+    # No need to keep going unless it's something *other* than 1
+    my $workflow_status = $app->param ('workflow_status');
+    return unless ($workflow_status && $workflow_status > 1);
+    
+    if ($workflow_status == 2) {
+        # move it along to the next user in the workflow
+        $plugin->_automatic_transfer ($cb, $app, $app->user, $obj) or return $cb->error ($cb->errstr);
+    }
+    elsif ($workflow_status == 3) {
+        # bounce it back to the previous owner
+        my $prev_owner = $plugin->_get_previous_owner ($obj);
+        if ($prev_owner && $prev_owner->id != $obj->author_id) {
+            $plugin->transfer_entry ($cb, $app, Entry => $obj, To => $prev_owner) or return $cb->error ($cb->errstr);
+        }
+    }
+    else {
+        return;
     }
     
+    # if we got this far, an entry was transferred, so we should make a note of that
+    require MT::Request;
+    my $r = MT::Request->instance;
+    $r->stash ('workflow_transferred', 1);
+}
+
+sub _get_previous_owner {
+    my $plugin = shift;
+    my ($entry) = @_;
+    
+    if (!ref $entry) {
+        require MT::Entry;
+        $entry = MT::Entry->load ($entry);
+    }
+    require MT::Author;
+    MT::Author->load ($entry->created_by);
 }
 
 sub _default_perms {
@@ -103,9 +257,9 @@ sub apply_default_settings {
 
     if ($scope_id =~ /blog:(\d+)/) {
         my $blog_id = $1;
-        if (!defined $data->{ can_publish }) {
-            $data->{ can_publish } = $plugin->_default_perms ($blog_id);
-        }
+        # if (!defined $data->{ can_publish }) {
+        #     $data->{ can_publish } = $plugin->_default_perms ($blog_id);
+        # }
     }
 }
 
@@ -122,28 +276,28 @@ sub load_config {
     if ($scope =~ /blog:(\d+)/) {
         $blog_id = $1;
 
-# Check for the existance of old Workflow permissions
-# If found, import the data and destroy the old record
-        require MT::PluginData;
-        if (my $old_publish_perms = MT::PluginData->load ({plugin => 'Workflow', key => $blog_id})) {
-            $old_workflow_perms = $old_publish_perms->data;
-            $params->{ can_publish } = {
-                map {
-                    $_ => 1
-                }
-                grep {
-                    $old_workflow_perms->{ $_ }->{ can_publish }
-                }
-                keys %$old_workflow_perms
-            };
-            $plugin->set_config_value('can_publish', $params->{ can_publish },
-                    $scope);
-
-            $old_publish_perms->remove;
-        }
+# # Check for the existance of old Workflow permissions
+# # If found, import the data and destroy the old record
+#         require MT::PluginData;
+#         if (my $old_publish_perms = MT::PluginData->load ({plugin => 'Workflow', key => $blog_id})) {
+#             $old_workflow_perms = $old_publish_perms->data;
+#             $params->{ can_publish } = {
+#                 map {
+#                     $_ => 1
+#                 }
+#                 grep {
+#                     $old_workflow_perms->{ $_ }->{ can_publish }
+#                 }
+#                 keys %$old_workflow_perms
+#             };
+#             $plugin->set_config_value('can_publish', $params->{ can_publish },
+#                     $scope);
+# 
+#             $old_publish_perms->remove;
+#         }
 
         require MT::Permission;
-        my %publishers = %{ $params->{ can_publish } };
+        my %publishers = map { $_->author_id => 1 } grep { $_->can_publish_post } MT::Permission->load ({ blog_id => $blog_id });
         $params->{authors_loop} = [ map {
             { author_id => $_->author_id,
                 author_name => $_->author->name,
@@ -151,7 +305,7 @@ sub load_config {
             }
         } 
         sort {lc($a->author->name) cmp lc($b->author->name) } 
-        grep { $_->can_post } 
+        grep { $_->can_create_post } 
         MT::Permission->load ({ blog_id => $blog_id }) ];
 
     }
@@ -168,7 +322,21 @@ sub save_config {
         my $app = MT::App::CMS->instance;
         my $q = $app->{query};
         my @p = $q->param('workflow_can_publish');
-        $param->{can_publish} = { map { $_ => 1 } @p };
+        my %publishers = map { $_ => 1 } @p;
+        
+        require MT::Permission;
+        foreach my $perm (MT::Permission->load ({ blog_id => $blog_id })) {
+            if ($perm->can_publish_post && !exists $publishers{$perm->author_id}) {
+                # Remove publish perm if they currently have it and it's not checked
+                $perm->can_publish_post (0);
+                $perm->save;
+            }
+            elsif (!$perm->can_publish_post && exists $publishers{$perm->author_id}) {
+                # Add publish perm if they don't already have it and it's checked
+                $perm->can_publish_post (1);
+                $perm->save;
+            }
+        }
     }
 
     $plugin->SUPER::save_config (@_);
@@ -180,10 +348,10 @@ sub reset_config {
 
     if ($scope =~ /blog:(\d+)/) {
         my $blog_id = $1;
-        $plugin->set_config_value ('can_publish', 
-                $plugin->_default_perms ($blog_id), 
-                $scope
-                );
+        # $plugin->set_config_value ('can_publish', 
+        #         $plugin->_default_perms ($blog_id), 
+        #         $scope
+        #         );
     }
 }
 
@@ -200,77 +368,41 @@ sub load_plugins {
     }
 }
 
-sub workflow_blog_setup {
-    my $plugin = shift;
-    require MT::App::CMS;
-    my $app = MT::App::CMS->instance;
-    my ($params, $scope) = @_;
-    if (!defined $params->{'can_publish'}) {
-        return "Initial setup";
-    } else {
-        return "Normal config";
-    }
-}
-
-sub transfer_entries {
-    my $plugin = shift;
-    my ($app)= @_;
-    return "transferring entries";
-}
-
-if (MT->version_number >= 3.2) {
-    require MT::App::CMS;
-    {
-        local $SIG{__WARN__} = sub {};
-        my $mt_update_entry_status = \&MT::App::CMS::update_entry_status;
-        *MT::App::CMS::update_entry_status = \&workflow_update_entry_status;
-    }
-} else {
-    require MT::ConfigMgr;
-    if (!MT::ConfigMgr->instance->AltTemplatePath) {
-        MT::ConfigMgr->instance->AltTemplatePath ('./plugins/Workflow/alt-tmpl');
-    }
-}
-
-
-sub workflow_update_entry_status {
-    my $app = shift;
-    my ($new_status, @ids) = @_;
-    return $app->errtrans("Need a status to update entries") unless $new_status;
-    return $app->errtrans("Need entries to update status") unless @ids;
-    my @bad_ids;
-    my @rebuild_list;
-    require MT::Entry;
-    foreach my $id (@ids) {
-        my $entry = MT::Entry->load($id, {cached_ok=>1}) or return $app->errtrans("One of the entries ([_1]) did not actually exist", $id);
-        push @rebuild_list, $entry if $entry->status != $new_status;
-        $entry->status($new_status);
-        $entry->save() or (push @bad_ids, $id);
-
-# Call workflow's publish checker callbacks and reload the entry
-        &entry_save($app, $app, $entry);
-        $entry = MT::Entry->load($entry->id, {cached_ok=>1});
-
-# Remove it from the rebuild_list if it didn't change
-        pop @rebuild_list if $entry->status != $new_status
-    }
-    return $app->errtrans("Some entries failed to save") if (@bad_ids); # FIXME: we don't really want this
-        $app->rebuild_entry(Entry => $_, BuildDependencies => 1)
-        foreach @rebuild_list; # FIXME: optimize, phase out to another page.
-        my $blog_id = $app->param('blog_id');
-    $app->call_return;
-}
+# sub workflow_update_entry_status {
+#     my $app = shift;
+#     my ($new_status, @ids) = @_;
+#     return $app->errtrans("Need a status to update entries") unless $new_status;
+#     return $app->errtrans("Need entries to update status") unless @ids;
+#     my @bad_ids;
+#     my @rebuild_list;
+#     require MT::Entry;
+#     foreach my $id (@ids) {
+#         my $entry = MT::Entry->load($id, {cached_ok=>1}) or return $app->errtrans("One of the entries ([_1]) did not actually exist", $id);
+#         push @rebuild_list, $entry if $entry->status != $new_status;
+#         $entry->status($new_status);
+#         $entry->save() or (push @bad_ids, $id);
+# 
+# # Call workflow's publish checker callbacks and reload the entry
+#         &entry_save($app, $app, $entry);
+#         $entry = MT::Entry->load($entry->id, {cached_ok=>1});
+# 
+# # Remove it from the rebuild_list if it didn't change
+#         pop @rebuild_list if $entry->status != $new_status
+#     }
+#     return $app->errtrans("Some entries failed to save") if (@bad_ids); # FIXME: we don't really want this
+#         $app->rebuild_entry(Entry => $_, BuildDependencies => 1)
+#         foreach @rebuild_list; # FIXME: optimize, phase out to another page.
+#         my $blog_id = $app->param('blog_id');
+#     $app->call_return;
+# }
 
 # The default publish checker: if the user is in the plugin config's can_publish hash, they can publish
 sub can_publish {
     my ($eh, $app, $author, $entry) = @_;
 
-    my $publish_perms = $plugin->get_config_value ('can_publish', 'blog:' . $entry->blog_id);
-
-    # Unless we know otherwise, let them publish!
-    return 1 unless ($publish_perms);
-    
-    return $publish_perms->{$author->id};
+    require MT::Permission;
+    my $perm = MT::Permission->get_by_key ({ blog_id => $entry->blog_id, author_id => $author->id });
+    return $perm->can_publish_post;
 }
 
 # The default transfer checker: make sure the new author can post to the entry's blog
@@ -433,7 +565,7 @@ sub _automatic_transfer {
         # so that we can sort on it in regular order (i.e. lower numbers, like 0, go first)
         my %latest_editor_entries = 
             map { $_->author_id => $_->modified_on }
-            map { MT::Entry->load ({ author_id => $_->id, status => MT::Entry::RELEASE, { sort => 'modified_on', direction => 'descend', limit => 1 } }) } @editors;
+            map { MT::Entry->load ({ author_id => $_->id, status => MT::Entry::RELEASE }, { sort => 'modified_on', direction => 'descend', limit => 1 }) } @editors;
 
         # Sort the editor list based on the latest entry modified_on timestamps
         # Editors with no published entries will rise to the front of the list as their latest entry dates will be 0/undef
