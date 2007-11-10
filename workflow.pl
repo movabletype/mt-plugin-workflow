@@ -9,8 +9,10 @@ use MT 4;
 
 use MT::Entry;
 
-use MT::Util qw( spam_protect );
+use MT::Util qw( spam_protect format_ts epoch2ts ts2epoch relative_date );
 use Data::Dumper;
+
+use Workflow::AuditLog;
 
 use vars qw($VERSION $plugin);
 $VERSION = '1.5';
@@ -55,26 +57,17 @@ $plugin = MT::Plugin::Workflow->new ({
                 $new_tag => sub { workflow_tag_runner ( $old_tag , @_ ) }
             } ( '', 'DisplayName', 'Email', 'Link', 'Nickname', 'URL', 'Username'),
         },
+        
+        schema_version  => '0.2',
 });
 MT->add_plugin ($plugin);
 
 sub init_registry {
     my $plugin = shift;
     my $reg = {
-        # applications    => {
-        #     cms         => {
-        #         list_actions    => {
-        #             entry       => {
-        #                 'editor_transfer'   => {
-        #                     label   => "Transfer to first available editor",
-        #                     order   => 500,
-        #                     code    => \&editor_transfer,
-        #                     permission  => 'can_post',
-        #                 }
-        #             }
-        #         }
-        #     }
-        # },
+        object_types    => {
+            'workflow_audit_log'    => 'Workflow::AuditLog',
+        },
         callbacks   => {
             'MT::App::CMS::template_source.edit_entry'  => \&edit_entry_source,
             'MT::App::CMS::template_param.edit_entry'   => \&edit_entry_param,
@@ -84,14 +77,102 @@ sub init_registry {
             'MT::App::CMS::template_param.list_entry'   => \&list_entry_param,
             
             'Workflow::CanPublish'          => \&can_publish,
+            'Workflow::PostTransfer'        => sub {
+                  transfer_audit_log (@_);
+            },
         },
         
         init_app    => {
             'MT::App::CMS'  => \&init_cms_app,
+        },
+        
+        applications    => {
+            cms         => {
+                list_actions    => {
+                    entry       => {
+                        view_audit_log  => {
+                            label   => 'View audit log',
+                            order   => 100,
+                            code    => \&view_audit_log,
+                            dialog  => 1,
+                            condition   => sub {
+                                return 1 unless MT::App->instance->mode eq 'view';
+                            }
+                        }
+                    }
+                }
+            }
         }
     };
     $plugin->registry ($reg);
 }
+
+sub view_audit_log {
+    my $app = shift;
+    my $id = $app->param ('id');
+    require MT::Entry;
+    my $entry = MT::Entry->load ($id);
+    my $tmpl = $plugin->load_tmpl ('audit_log.tmpl') or die $plugin->errstr;
+    my $blog = $entry->blog;
+    $app->listing ({
+        type    => 'workflow_audit_log',
+        template    => $tmpl,
+        terms   => {
+            entry_id    => $id,
+        },
+        code    => sub {
+            my ($obj, $row) = @_;
+            require MT::Author;
+            my $a = MT::Author->load ($obj->created_by);
+            $row->{username} = $a->name;
+            if ($obj->transferred_to) {
+                my $ta = MT::Author->load ($obj->transferred_to);
+                $row->{transferred_to_username} = $ta->name;                
+            }
+            else {
+                $row->{transferred_to_username} = '';
+            }
+            my @actions = ();
+            
+            if (!$obj->old_status) {
+                push @actions, 'Created';
+            }
+                        
+            if ($obj->old_status != $obj->new_status) {
+                if ($obj->new_status == MT::Entry::HOLD()) {
+                    push @actions, 'Unpublished';
+                }
+                elsif ($obj->new_status == MT::Entry::RELEASE()) {
+                    push @actions, 'Published';
+                }
+                elsif ($obj->new_status == MT::Entry::FUTURE()) {
+                    push @actions, 'Scheduled';
+                }
+            }
+            
+            if ($obj->transferred_to) {
+                push @actions, 'Transferred';
+            }
+            
+            if (!scalar @actions) {
+                push @actions, 'Edit';
+            }
+            
+            $row->{action_taken} = join (' and ', @actions);
+            
+            if ( my $ts = $obj->created_on ) {
+                    $row->{created_on_formatted} =
+                      format_ts( '%b %e, %Y',
+                        epoch2ts( $blog, ts2epoch( undef, $ts ) ), $blog, $app->user ? $app->user->preferred_language : undef );
+                $row->{created_on_relative} = relative_date( $ts, time );
+                # $row->{log_detail} = $log->description;
+            }
+            
+        },
+         
+    });
+}
+
 
 sub init_cms_app {
     my $plugin = shift;
@@ -195,6 +276,22 @@ sub list_entry_param {
 sub post_save_entry {
     my ($cb, $app, $obj, $orig) = @_;
     
+    # First check for status changes
+    # and log them if there is a change
+    require Workflow::AuditLog;
+    my $al = Workflow::AuditLog->new;
+    $al->entry_id ($obj->id);
+    $al->new_status ($obj->status);
+    if (!$orig) {
+        # New entry!
+        $al->old_status (0);
+    }
+    else {
+        # It's not new, and somebody saved it
+        $al->old_status ($orig->status);        
+    }
+    $al->save;
+    
     # No need to keep going unless it's something *other* than 1
     my $workflow_status = $app->param ('workflow_status');
     return unless ($workflow_status && $workflow_status > 1);
@@ -213,6 +310,11 @@ sub post_save_entry {
     else {
         return;
     }
+
+    # There was a transfer, so add that to the log
+    $al->transferred_to ($obj->author_id);
+    $al->note ($app->param ('workflow_change_note'));
+    $al->save;
     
     # if we got this far, an entry was transferred, so we should make a note of that
     require MT::Request;
@@ -535,7 +637,7 @@ sub transfer_entry {
         
         # Perform the actual entry transfer
         $plugin->_transfer_entry ($eh, $app, %params) or return $eh->error ($eh->errstr);
-        
+                
         $app->log ("Entry #".$entry->id." transferred from '".$old_author->name.
                 "' to '".$new_author->name."' by '".$app->{author}->name."'");
         
@@ -629,5 +731,16 @@ sub workflow_tag_runner {
     my ($hdlr) = $ctx->handler_for ($tag);
     $hdlr->($ctx, $args);
 }
+
+sub transfer_audit_log {
+    my ($cb, $app, $entry, $user) = @_;
+    
+    # my $al = Workflow::AuditLog->new;
+    # $al->entry_id ($entry->id);
+    # $al->transferred_to ($entry->author_id);
+    # $al->note ($app->param ('workflow_change_note'));
+    # $al->save;
+}
+
 
 1;
