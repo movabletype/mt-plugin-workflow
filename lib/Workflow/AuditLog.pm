@@ -13,6 +13,7 @@ __PACKAGE__->install_properties ({
         'transferred_to'    => 'integer',
         'old_status'    => 'smallint not null',
         'new_status'    => 'smallint not null',
+        'edited'    => 'boolean',
     },
 
     indexes => {

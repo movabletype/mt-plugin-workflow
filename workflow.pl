@@ -58,7 +58,7 @@ $plugin = MT::Plugin::Workflow->new ({
             } ( '', 'DisplayName', 'Email', 'Link', 'Nickname', 'URL', 'Username'),
         },
         
-        schema_version  => '0.2',
+        schema_version  => '0.3',
 });
 MT->add_plugin ($plugin);
 
@@ -137,6 +137,9 @@ sub view_audit_log {
             if (!$obj->old_status) {
                 push @actions, 'Created';
             }
+            elsif ($obj->edited) {
+                push @actions, 'Edited';
+            }
                         
             if ($obj->old_status != $obj->new_status) {
                 if ($obj->new_status == MT::Entry::HOLD()) {
@@ -152,10 +155,6 @@ sub view_audit_log {
             
             if ($obj->transferred_to) {
                 push @actions, 'Transferred';
-            }
-            
-            if (!scalar @actions) {
-                push @actions, 'Edit';
             }
             
             $row->{action_taken} = join (' and ', @actions);
@@ -285,12 +284,21 @@ sub post_save_entry {
     if (!$orig) {
         # New entry!
         $al->old_status (0);
+        $al->edited (0);
     }
     else {
         # It's not new, and somebody saved it
         $al->old_status ($orig->status);        
+
+        # Check the various text fields for changes
+        my $is_edited = 0;
+        foreach my $field (qw( text text_more title excerpt )) {
+            $is_edited ||= ($obj->$field ne $orig->$field);
+        }
+        $al->edited ($is_edited);
     }
     $al->save;
+    
     
     # No need to keep going unless it's something *other* than 1
     my $workflow_status = $app->param ('workflow_status');
