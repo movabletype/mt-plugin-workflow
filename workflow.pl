@@ -17,6 +17,7 @@ use Workflow::AuditLog;
 use vars qw($VERSION $plugin);
 $VERSION = '1.5';
 $plugin = MT::Plugin::Workflow->new ({
+        id          => 'Workflow',
         name		=> 'Workflow',
         version		=> $VERSION,
         description	=> 'Workflow can limit publishing rights to editors, can limit specified authors to posting only drafts, and lets an author pass ownership of an entry to any other author or editor with appropriate permissions.  Authors are notified when ownership of an entry is transferred.',
@@ -88,6 +89,9 @@ sub init_registry {
         
         applications    => {
             cms         => {
+                methods => {
+                    edit_workflow   => '$workflow::Workflow::CMS::edit_workflow',
+                },
                 list_actions    => {
                     entry       => {
                         view_audit_log  => {
@@ -99,6 +103,15 @@ sub init_registry {
                                 return 1 unless MT::App->instance->mode eq 'view';
                             }
                         }
+                    }
+                },
+                menus   => {
+                    'manage:workflow'   => {
+                        label   => 'Workflow',
+                        mode    => 'edit_workflow',
+                        order   => 10000,
+                        permission  => 'edit_all_posts',
+                        view    => 'blog',
                     }
                 }
             }
