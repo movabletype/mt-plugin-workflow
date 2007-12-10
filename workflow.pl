@@ -74,12 +74,12 @@ sub init_registry {
             'workflow_audit_log'    => 'Workflow::AuditLog',
         },
         callbacks   => {
-            'MT::App::CMS::template_source.edit_entry'  => \&edit_entry_source,
-            'MT::App::CMS::template_param.edit_entry'   => \&edit_entry_param,
+            'MT::App::CMS::template_source.edit_entry'  => '$Workflow::Workflow::CMS::edit_entry_source',
+            'MT::App::CMS::template_param.edit_entry'   => '$Workflow::Workflow::CMS::edit_entry_param',
             'cms_post_save.entry'                       => \&post_save_entry,
             
-            'MT::App::CMS::template_source.list_entry'  => \&list_entry_source,
-            'MT::App::CMS::template_param.list_entry'   => \&list_entry_param,
+            'MT::App::CMS::template_source.list_entry'  => '$Workflow::Workflow::CMS::list_entry_source',
+            'MT::App::CMS::template_param.list_entry'   => '$Workflow::Workflow::CMS::list_entry_param',
             
             'Workflow::CanPublish'          => \&can_publish,
             'Workflow::PostTransfer'        => sub {
@@ -147,77 +147,6 @@ sub init_cms_app {
             $orig_handler->($app, @_);
         }
     }
-}
-
-sub edit_entry_source {
-    my ($cb, $app, $tmpl) = @_;
-    
-    my $new = q{
-        <mt:unless name="status_publish">
-        <mtapp:setting
-            id="workflow_status"
-            label="Workflow Status">
-            <script type="text/javascript">
-                function updateNote() {
-                    var sel = getByID('workflow_status');
-                    var val = sel.options[sel.selectedIndex].value;
-                    if (val > 1) {
-                        TC.removeClassName (getByID('workflow_change_note-field'), 'hidden');                        
-                    }
-                    else {
-                        TC.addClassName (getByID('workflow_change_note-field'), 'hidden');
-                    }
-                }
-            </script>
-            <select name="workflow_status" id="workflow_status" class="full-width" onchange="updateNote();">
-                <option value="1">Unfinished</option>
-                <option value="2">Ready for next step</option>
-                <mt:if name="workflow_has_previous"><option value="3">Return to previous step</option></mt:if>
-            </select>
-        </mtapp:setting>
-        <mtapp:setting
-            id="workflow_change_note"
-            label="Workflow Change Note"
-            shown="0">
-            <textarea type="text" class="full-width short" rows="" cols="" id="workflow_change_note" name="workflow_change_note"></textarea>
-        </mtapp:setting>
-        </mt:unless>
-    };
-    my $old = '<h3><__trans phrase="Publishing"></h3>';
-    
-    $$tmpl =~ s{\Q$old\E}{$old$new}ms;
-}
-
-sub edit_entry_param {
-    my ($cb, $app, $param, $tmpl) = @_;
-    
-    return if (!$param->{id});
-    my $prev_owner = $plugin->_get_previous_owner ($param->{id});
-    
-    $param->{workflow_has_previous} = ($prev_owner && $param->{author_id} != $prev_owner->id);
-}
-
-sub list_entry_source {
-    my ($cb, $app, $tmpl) = @_;
-    my $old = q{    </div>
-</mt:setvarblock>
-<mt:unless name="is_power_edit">};
-    my $new = q{
-        <mt:if name="workflow_transferred">
-            <mtapp:statusmsg
-                id="workflow_transferred"
-                class="success">
-                <__trans phrase="The [_1] has been transferred." params="<mt:var name="object_label">">
-            </mtapp:statusmsg>
-        </mt:if>
-    };
-    
-    $$tmpl =~ s{\Q$old\E}{$new$old}ms;
-}
-
-sub list_entry_param {
-    my ($cb, $app, $param, $tmpl) = @_;
-    $param->{workflow_transferred} = $app->param ('workflow_transferred');
 }
 
 sub post_save_entry {
