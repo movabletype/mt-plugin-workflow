@@ -26,11 +26,6 @@ $plugin = MT::Plugin::Workflow->new ({
         author_link	=> 'http://www.apperceptive.com/',
         blog_config_template	=> 'blog_config.tmpl',
         settings		=> new MT::PluginSettings ([
-            # Hash where the keys are author ids that have been checked in the plugin config
-            # (though not necessarily that can publish, as the plugin may be extended via callbacks)
-            # (this is just the default list)
-            # [ 'can_publish', { Default => undef, Scope => 'blog' } ],
-            
             # Whether or not email notifications should be sent out for transfer and publish attempts
             [ 'email_notification', { Default => 1, Scope => 'blog'} ],
             
@@ -40,17 +35,11 @@ $plugin = MT::Plugin::Workflow->new ({
         ]),
             
         callbacks   => {
-            # 'CMSPostSave.entry'  => {
-            #     priority    => 1,
-            #     code        => \&entry_save,
-            # },
-            
             'Workflow::CanTransfer'         => \&can_transfer,
             'Workflow::PostTransfer'        => \&post_transfer,
             'Workflow::PostPublishAttempt'  => \&post_publish_attempt,
         },
-        
-        
+              
         template_tags   => {
             map { 
                 my $old_tag = 'EntryAuthor' . $_;
@@ -236,112 +225,6 @@ sub _default_perms {
     };
 }
 
-sub apply_default_settings {
-    my $plugin = shift;
-    my ($data, $scope_id) = @_;
-
-    $plugin->SUPER::apply_default_settings (@_);
-
-    if ($scope_id =~ /blog:(\d+)/) {
-        my $blog_id = $1;
-        # if (!defined $data->{ can_publish }) {
-        #     $data->{ can_publish } = $plugin->_default_perms ($blog_id);
-        # }
-    }
-}
-
-sub load_config {
-    my $plugin = shift;
-    my ($params, $scope) = @_;
-    my $old_workflow_perms;
-    my $blog_id;
-
-# First load up any configuration items
-    $plugin->SUPER::load_config (@_);
-
-# Check the scope to see if we're working on an individual blog
-    if ($scope =~ /blog:(\d+)/) {
-        $blog_id = $1;
-
-# # Check for the existance of old Workflow permissions
-# # If found, import the data and destroy the old record
-#         require MT::PluginData;
-#         if (my $old_publish_perms = MT::PluginData->load ({plugin => 'Workflow', key => $blog_id})) {
-#             $old_workflow_perms = $old_publish_perms->data;
-#             $params->{ can_publish } = {
-#                 map {
-#                     $_ => 1
-#                 }
-#                 grep {
-#                     $old_workflow_perms->{ $_ }->{ can_publish }
-#                 }
-#                 keys %$old_workflow_perms
-#             };
-#             $plugin->set_config_value('can_publish', $params->{ can_publish },
-#                     $scope);
-# 
-#             $old_publish_perms->remove;
-#         }
-
-        require MT::Permission;
-        my %publishers = map { $_->author_id => 1 } grep { $_->can_publish_post } MT::Permission->load ({ blog_id => $blog_id });
-        $params->{authors_loop} = [ map {
-            { author_id => $_->author_id,
-                author_name => $_->author->name,
-                author_can_publish => $publishers{$_->author_id},
-            }
-        } 
-        sort {lc($a->author->name) cmp lc($b->author->name) } 
-        grep { $_->can_create_post } 
-        MT::Permission->load ({ blog_id => $blog_id }) ];
-
-    }
-
-} 
-
-sub save_config {
-    my $plugin = shift;
-    my ($param, $scope) = @_;
-
-    if ($scope =~ /blog:(\d+)/) {
-        my $blog_id = $1;
-        require MT::App::CMS;
-        my $app = MT::App::CMS->instance;
-        my $q = $app->{query};
-        my @p = $q->param('workflow_can_publish');
-        my %publishers = map { $_ => 1 } @p;
-        
-        require MT::Permission;
-        foreach my $perm (MT::Permission->load ({ blog_id => $blog_id })) {
-            if ($perm->can_publish_post && !exists $publishers{$perm->author_id}) {
-                # Remove publish perm if they currently have it and it's not checked
-                $perm->can_publish_post (0);
-                $perm->save;
-            }
-            elsif (!$perm->can_publish_post && exists $publishers{$perm->author_id}) {
-                # Add publish perm if they don't already have it and it's checked
-                $perm->can_publish_post (1);
-                $perm->save;
-            }
-        }
-    }
-
-    $plugin->SUPER::save_config (@_);
-}
-
-sub reset_config {
-    my $plugin = shift;
-    my ($scope) = @_;
-
-    if ($scope =~ /blog:(\d+)/) {
-        my $blog_id = $1;
-        # $plugin->set_config_value ('can_publish', 
-        #         $plugin->_default_perms ($blog_id), 
-        #         $scope
-        #         );
-    }
-}
-
 sub load_plugins {
     my $plugin_dir = File::Spec->catdir ('plugins', 'Workflow', 'plugins');
     local *DH;
@@ -354,34 +237,6 @@ sub load_plugins {
         }
     }
 }
-
-# sub workflow_update_entry_status {
-#     my $app = shift;
-#     my ($new_status, @ids) = @_;
-#     return $app->errtrans("Need a status to update entries") unless $new_status;
-#     return $app->errtrans("Need entries to update status") unless @ids;
-#     my @bad_ids;
-#     my @rebuild_list;
-#     require MT::Entry;
-#     foreach my $id (@ids) {
-#         my $entry = MT::Entry->load($id, {cached_ok=>1}) or return $app->errtrans("One of the entries ([_1]) did not actually exist", $id);
-#         push @rebuild_list, $entry if $entry->status != $new_status;
-#         $entry->status($new_status);
-#         $entry->save() or (push @bad_ids, $id);
-# 
-# # Call workflow's publish checker callbacks and reload the entry
-#         &entry_save($app, $app, $entry);
-#         $entry = MT::Entry->load($entry->id, {cached_ok=>1});
-# 
-# # Remove it from the rebuild_list if it didn't change
-#         pop @rebuild_list if $entry->status != $new_status
-#     }
-#     return $app->errtrans("Some entries failed to save") if (@bad_ids); # FIXME: we don't really want this
-#         $app->rebuild_entry(Entry => $_, BuildDependencies => 1)
-#         foreach @rebuild_list; # FIXME: optimize, phase out to another page.
-#         my $blog_id = $app->param('blog_id');
-#     $app->call_return;
-# }
 
 # The default publish checker: if the user is in the plugin config's can_publish hash, they can publish
 sub can_publish {

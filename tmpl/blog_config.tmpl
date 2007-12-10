@@ -1,14 +1,4 @@
 <mtapp:setting
-    id="workflow_can_publish"
-    label="<__trans phrase="Publishers">:">
-    <ul>
-        <mt:loop name="authors_loop">
-        <li><input type="checkbox" class="cb" name="workflow_can_publish" id="workflow_can_publish_<mt:var name="author_id">" value="<mt:var name="author_id">" <mt:if name="author_can_publish">checked="checked"</mt:if> />&nbsp;<mt:var name="author_name"></li>
-        </mt:loop>
-    </ul>
-</mtapp:setting>
-
-<mtapp:setting
     id="email_notifications"
     label="<__trans phrase="Email Notifications">:">
     <input type="checkbox" class="cb" value="1" name="email_notifications" id="email_notifications" <mt:if name="email_notificaions">checked="checked"</mt:if> />
