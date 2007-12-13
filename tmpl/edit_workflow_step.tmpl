@@ -1,0 +1,76 @@
+<mt:setvarblock name="page_title"><__trans phrase="Edit Workflow Step"></mt:setvarblock>
+<$mt:setvar name="position_actions_bottom" value="1"$>
+<mt:include name="include/header.tmpl">
+
+<form method="post" action="<mt:var name="script_url">" onsubmit="return validate(this)">
+    <input type="hidden" name="blog_id" value="<mt:var name="blog_id">" />
+    <input type="hidden" name="__mode" value="save" />
+    <input type="hidden" name="_type" value="<mt:var name="object_type">" />
+    <input type="hidden" name="id" value="<mt:var name="id">" />
+    <input type="hidden" name="return_args" value="<mt:var name="return_args" escape="html">" />
+    <input type="hidden" name="magic_token" value="<mt:var name="magic_token">" />
+    
+    <input type="hidden" name="order" value="<mt:var name="order">" />
+    
+    <mt:if name="id">
+    <div id="entry-nav" class="pkg">
+        <ul class="inline-nav right">
+        </ul>
+        <ul class="inline-nav left">
+            <li id="previous-link"><mt:if name="previous_step_id"><a href="<$mt:var name="script_url"$>?__mode=view&amp;_type=<$mt:var name="object_type" lower_case="1"$>&amp;id=<$mt:var name="previous_step_id"$>&amp;blog_id=<$mt:var name="blog_id"$>"><__trans phrase="&laquo; Previous"></a><mt:else><__trans phrase="&laquo; Previous"></mt:if></li>
+            <li><a href="<$mt:var name="script_url"$>?__mode=list_<$mt:var name="object_type" lower_case="1"$>&amp;blog_id=<$mt:var name="blog_id"$>"><__trans phrase="Manage [_1]" params="<$mt:var name="object_label_plural"$>"></a></li>
+            <li id="next-link" style='border-right: none'><mt:if name="next_step_id"><a href="<$mt:var name="script_url"$>?__mode=view&amp;_type=<$mt:var name="object_type" lower_case="1"$>&amp;id=<$mt:var name="next_step_id"$>&amp;blog_id=<$mt:var name="blog_id"$>"><__trans phrase="Next &raquo;"></a><mt:else><__trans phrase="Next &raquo;"></mt:if></li>
+        </ul>
+    </div>
+    </mt:if>
+    <mt:include name="include/actions_bar.tmpl" hide_pager="1">
+
+    <fieldset>
+<mtapp:setting
+    id="name"
+    label="<__trans phrase="Name">">
+    <div class="textarea-wrapper">
+        <input name="name" id="name" class="full-width" maxlength="100" value="<mt:var name="name" escape="html">" class="wide" />
+    </div>
+</mtapp:setting>
+
+<mtapp:setting
+    id="description"
+    label="<__trans phrase="Description">">
+    <textarea name="description" id="description" rows="" cols="" class="full-width short"><mt:var name="description" escape="html"></textarea>
+</mtapp:setting>
+    </fieldset>
+
+<mt:setvarblock name="action_buttons">
+    <button
+        type="submit"
+        accesskey="s"
+        title="<__trans phrase="Save changes to this [_1] (s)" params="<mt:var name="object_label" lower_case="1">">"
+        class="primary-button"
+        ><__trans phrase="Save Changes"></button>
+</mt:setvarblock>
+
+<fieldset id="publishing-field">
+    <h3>Roles</h3>    
+    <ul>
+        <mt:loop name="roles">
+        <li><input type="checkbox" class="cb" id="role_id_<mt:var name="role_id">" name="role_id" value="<mt:var name="role_id">"<mt:if name="role_checked"> checked="checked"</mt:if> /> <mt:var name="role_name"></li>
+        </mt:loop>
+    </ul>
+    
+</fieldset>
+
+<fieldset id="feedback-field">
+    <h3>Authors</h3>
+    <ul>
+        <mt:loop name="authors">
+        <li><input type="checkbox" class="cb" id="author_id_<mt:var name="author_id">" name="author_id" value="<mt:var name="author_id">"<mt:if name="author_checked"> checked="checked"</mt:if> /> <mt:var name="author_name"></li>
+        </mt:loop>
+    </ul>
+</fieldset>
+
+<mt:include name="include/actions_bar.tmpl" bar_position="bottom" hide_pager="1" settings_bar="1">
+</form>
+
+
+<mt:include name="include/footer.tmpl">

@@ -7,15 +7,16 @@ use base qw( MT::Object );
 
 __PACKAGE__->install_properties ({
     column_defs => {
-        'id'        => 'integer not null primary key auto_increment',
-        'entry_id'  => 'integer not null',
-        'note'      => 'text',
+        'id'                => 'integer not null primary key auto_increment',
+        'object_id'         => 'integer not null',
+        'object_datasource' => 'string(50) not null',
+        'note'              => 'text',
         'transferred_to'    => 'integer',
-        'old_status'    => 'smallint not null',
-        'new_status'    => 'smallint not null',
-        'old_step'  => 'integer not null',
-        'new_step'  => 'integer not null',
-        'edited'    => 'boolean',
+        'old_status'        => 'smallint not null',
+        'new_status'        => 'smallint not null',
+        'old_step'          => 'integer not null',
+        'new_step'          => 'integer not null',
+        'edited'            => 'boolean',
     },
 
     indexes => {

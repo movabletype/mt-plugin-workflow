@@ -1,0 +1,32 @@
+<mt:setvarblock name="page_title"><__trans phrase="Edit Workflow"></mt:setvarblock>
+
+<mt:include name="include/header.tmpl">
+<mt:setvarblock name="action_buttons">
+                <a href="javascript:void(0)"
+                    onclick="doRemoveItems(getByID('<$mt:var name="object_type"$>-listing-form'), '<mt:var name="object_label" lower_case="1" escape="js">', '<mt:var name="object_label_plural" lower_case="1" escape="js">'); return false;"
+                    accesskey="x"
+                    title="<__trans phrase="Delete selected [_1] (x)" params="<mt:var name="object_label_plural">">"
+                    ><__trans phrase="Delete"></a>
+</mt:setvarblock>
+<p id="create-new-link"><a href="<$mt:var name="mt_url"$>?__mode=view&amp;_type=<mt:var name="object_type">&amp;blog_id=<$mt:var name="blog_id"$>" class="icon-left icon-create"><__trans phrase="Create [_1] at the end" params="<mt:var name="object_label" lower_case="1">"></a></p>
+
+<mtapp:listing>
+    <mt:if __first__>
+        <thead>
+            <tr>
+                <th class="cb"><input type="checkbox" name="id-head" value="all" class="select" /></th>
+                <th>Name</th>
+            </tr>
+        </thead>
+        <tbody>
+    </mt:if>
+    <tr class="<mt:if name="__odd__">odd<mt:else>even</mt:if>">
+        <td class="cb"><input type="checkbox" name="id" value="<mt:var name="id">" class="select" /></td>
+        <td><a href="<$mt:var name="script_url"$>?__mode=view&amp;_type=<mt:var name="object_type">&amp;id=<$mt:var name="id"$>&amp;blog_id=<$mt:var name="blog_id"$>"><mt:var name="name"></a></td>
+    </tr>
+    <mt:if __last__>
+        </tbody>
+    </mt:if>
+</mtapp:listing>
+
+<mt:include name="include/footer.tmpl">

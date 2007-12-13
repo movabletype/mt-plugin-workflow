@@ -13,6 +13,8 @@ use MT::Util qw( spam_protect format_ts epoch2ts ts2epoch relative_date );
 use Data::Dumper;
 
 use Workflow::AuditLog;
+use Workflow::Step;
+use Workflow::StepAssociation;
 
 use vars qw($VERSION $plugin);
 $VERSION = '1.5';
@@ -48,7 +50,7 @@ $plugin = MT::Plugin::Workflow->new ({
             } ( '', 'DisplayName', 'Email', 'Link', 'Nickname', 'URL', 'Username'),
         },
         
-        schema_version  => '0.4',
+        schema_version  => '0.6',
 });
 MT->add_plugin ($plugin);
 
@@ -61,6 +63,8 @@ sub init_registry {
     my $reg = {
         object_types    => {
             'workflow_audit_log'    => 'Workflow::AuditLog',
+            'workflow_step'         => 'Workflow::Step',
+            'workflow_step_association' => 'Workflow::StepAssociation',
         },
         callbacks   => {
             'MT::App::CMS::template_source.edit_entry'  => '$Workflow::Workflow::CMS::edit_entry_source',
@@ -69,6 +73,8 @@ sub init_registry {
             
             'MT::App::CMS::template_source.list_entry'  => '$Workflow::Workflow::CMS::list_entry_source',
             'MT::App::CMS::template_param.list_entry'   => '$Workflow::Workflow::CMS::list_entry_param',
+            
+            'cms_post_save.workflow_step'               => '$Workflow::Workflow::CMS::post_workflow_step_save',
             
             'Workflow::CanPublish'          => \&can_publish,
             'Workflow::PostTransfer'        => sub {
@@ -84,6 +90,9 @@ sub init_registry {
             cms         => {
                 methods => {
                     edit_workflow   => '$Workflow::Workflow::CMS::edit_workflow',
+                    # edit_step       => '$Workflow::Workflow::CMS::edit_step',
+                    list_workflow_step  => '$Workflow::Workflow::CMS::list_workflow_step',
+                    view_workflow_step  => '$Workflow::Workflow::CMS::view_workflow_step',
                     view_audit_log  => '$Workflow::Workflow::CMS::view_audit_log',
                 },
                 page_actions    => {
@@ -98,7 +107,9 @@ sub init_registry {
                 menus   => {
                     'manage:workflow'   => {
                         label   => 'Workflow',
-                        mode    => 'edit_workflow',
+                        # mode    => 'edit_workflow',
+                        mode    => 'list',
+                        args    => { _type => 'workflow_step' },
                         order   => 10000,
                         permission  => 'edit_all_posts',
                         view    => 'blog',
@@ -145,7 +156,8 @@ sub post_save_entry {
     # and log them if there is a change
     require Workflow::AuditLog;
     my $al = Workflow::AuditLog->new;
-    $al->entry_id ($obj->id);
+    $al->object_id ($obj->id);
+    $al->object_datasource ('entry');
     $al->new_status ($obj->status);
     if (!$orig) {
         # New entry!
@@ -164,7 +176,6 @@ sub post_save_entry {
         $al->edited ($is_edited);
     }
     $al->save;
-    
     
     # No need to keep going unless it's something *other* than 1
     my $workflow_status = $app->param ('workflow_status');
