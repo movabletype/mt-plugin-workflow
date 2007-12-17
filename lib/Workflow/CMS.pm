@@ -215,9 +215,9 @@ sub edit_entry_source {
                 }
             </script>
             <select name="workflow_status" id="workflow_status" class="full-width" onchange="updateNote();">
-                <option value="1">Unfinished</option>
-                <option value="2">Ready for next step</option>
-                <mt:if name="workflow_has_previous"><option value="3">Return to previous step</option></mt:if>
+                <option value="0">Unfinished</option>
+                <option value="1">Ready for next step</option>
+                <mt:if name="workflow_has_previous"><option value="-1">Return to previous step</option></mt:if>
             </select>
         </mtapp:setting>
         <mtapp:setting

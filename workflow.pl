@@ -12,6 +12,7 @@ use MT::Entry;
 use MT::Util qw( spam_protect format_ts epoch2ts ts2epoch relative_date );
 use Data::Dumper;
 
+use Workflow::Workflowable;
 use Workflow::AuditLog;
 use Workflow::Step;
 use Workflow::StepAssociation;
@@ -65,6 +66,7 @@ sub init_registry {
             'workflow_audit_log'    => 'Workflow::AuditLog',
             'workflow_step'         => 'Workflow::Step',
             'workflow_step_association' => 'Workflow::StepAssociation',
+            'workflow_status'       => 'Workflow::Status',
         },
         callbacks   => {
             'MT::App::CMS::template_source.edit_entry'  => '$Workflow::Workflow::CMS::edit_entry_source',
@@ -77,20 +79,16 @@ sub init_registry {
             'cms_post_save.workflow_step'               => '$Workflow::Workflow::CMS::post_workflow_step_save',
             
             'Workflow::CanPublish'          => \&can_publish,
-            'Workflow::PostTransfer'        => sub {
-                  transfer_audit_log (@_);
-            },
+            'Workflow::PostTransfer.*'      => \&post_transfer,
+            'Workflow::PostTransfer.entry'  => \&post_transfer_entry,
         },
         
-        init_app    => {
-            'MT::App::CMS'  => \&init_cms_app,
-        },
+        init_app    => \&app_init,
         
         applications    => {
             cms         => {
                 methods => {
                     edit_workflow   => '$Workflow::Workflow::CMS::edit_workflow',
-                    # edit_step       => '$Workflow::Workflow::CMS::edit_step',
                     list_workflow_step  => '$Workflow::Workflow::CMS::list_workflow_step',
                     view_workflow_step  => '$Workflow::Workflow::CMS::view_workflow_step',
                     view_audit_log  => '$Workflow::Workflow::CMS::view_audit_log',
@@ -120,6 +118,27 @@ sub init_registry {
     };
     $plugin->registry ($reg);
 }
+
+sub app_init {
+    my $plugin = shift;
+    my ($app) = @_;
+    
+    $plugin->init_workflowable_objects;
+    $plugin->init_cms_app ($app) if ($app->isa ('MT::App::CMS'));
+}
+
+sub init_workflowable_objects {
+    my $plugin = shift;
+    require MT::Entry;
+    push @MT::Entry::ISA, 'Workflow::Workflowable';
+    
+    MT::Entry->workflow_init (
+        TextFields  => [ qw( text text_more title excerpt ) ],
+        OwnerField  => 'author_id',
+        StatusField => 'status',
+    );
+}
+
 
 sub init_cms_app {
     my $plugin = shift;
@@ -152,54 +171,58 @@ sub init_cms_app {
 sub post_save_entry {
     my ($cb, $app, $obj, $orig) = @_;
     
-    # First check for status changes
-    # and log them if there is a change
-    require Workflow::AuditLog;
-    my $al = Workflow::AuditLog->new;
-    $al->object_id ($obj->id);
-    $al->object_datasource ('entry');
-    $al->new_status ($obj->status);
-    if (!$orig) {
-        # New entry!
-        $al->old_status (0);
-        $al->edited (0);
-    }
-    else {
-        # It's not new, and somebody saved it
-        $al->old_status ($orig->status);        
-
-        # Check the various text fields for changes
-        my $is_edited = 0;
-        foreach my $field (qw( text text_more title excerpt )) {
-            $is_edited ||= ($obj->$field ne $orig->$field);
-        }
-        $al->edited ($is_edited);
-    }
-    $al->save;
+    $obj->workflow_update ($orig, $app->param ('workflow_status'), $app->param ('workflow_change_note'));
     
-    # No need to keep going unless it's something *other* than 1
-    my $workflow_status = $app->param ('workflow_status');
-    return unless ($workflow_status && $workflow_status > 1);
-    
-    if ($workflow_status == 2) {
-        # move it along to the next user in the workflow
-        $plugin->_automatic_transfer ($cb, $app, $app->user, $obj) or return $cb->error ($cb->errstr);
-    }
-    elsif ($workflow_status == 3) {
-        # bounce it back to the previous owner
-        my $prev_owner = $plugin->_get_previous_owner ($obj);
-        if ($prev_owner && $prev_owner->id != $obj->author_id) {
-            $plugin->transfer_entry ($cb, $app, Entry => $obj, To => $prev_owner) or return $cb->error ($cb->errstr);
-        }
-    }
-    else {
-        return;
-    }
-
-    # There was a transfer, so add that to the log
-    $al->transferred_to ($obj->author_id);
-    $al->note ($app->param ('workflow_change_note'));
-    $al->save;
+    # my $step = $obj->workflow_step;
+    # 
+    # # First check for status changes
+    # # and log them if there is a change
+    # require Workflow::AuditLog;
+    # my $al = Workflow::AuditLog->new;
+    # $al->object_id ($obj->id);
+    # $al->object_datasource ($obj->datasource);
+    # $al->new_status ($obj->status);
+    # if (!$orig) {
+    #     # New entry!
+    #     $al->old_status (0);
+    #     $al->edited (0);
+    # }
+    # else {
+    #     # It's not new, and somebody saved it
+    #     $al->old_status ($orig->status);        
+    # 
+    #     # Check the various text fields for changes
+    #     my $is_edited = 0;
+    #     foreach my $field (qw( text text_more title excerpt )) {
+    #         $is_edited ||= ($obj->$field ne $orig->$field);
+    #     }
+    #     $al->edited ($is_edited);
+    # }
+    # $al->save;
+    # 
+    # # No need to keep going unless it's something *other* than 1
+    # my $workflow_status = $app->param ('workflow_status');
+    # return unless ($workflow_status && $workflow_status > 1);
+    # 
+    # if ($workflow_status == 2) {
+    #     # move it along to the next user in the workflow
+    #     $plugin->_automatic_transfer ($cb, $app, $app->user, $obj) or return $cb->error ($cb->errstr);
+    # }
+    # elsif ($workflow_status == 3) {
+    #     # bounce it back to the previous owner
+    #     my $prev_owner = $plugin->_get_previous_owner ($obj);
+    #     if ($prev_owner && $prev_owner->id != $obj->author_id) {
+    #         $plugin->transfer_entry ($cb, $app, Entry => $obj, To => $prev_owner) or return $cb->error ($cb->errstr);
+    #     }
+    # }
+    # else {
+    #     return;
+    # }
+    # 
+    # # There was a transfer, so add that to the log
+    # $al->transferred_to ($obj->author_id);
+    # $al->note ($app->param ('workflow_change_note'));
+    # $al->save;
     
     # if we got this far, an entry was transferred, so we should make a note of that
     require MT::Request;
@@ -483,14 +506,22 @@ sub workflow_tag_runner {
     $hdlr->($ctx, $args);
 }
 
-sub transfer_audit_log {
-    my ($cb, $app, $entry, $user) = @_;
+sub post_transfer {
+    my ($cb, $obj, $from, $to) = @_;
     
-    # my $al = Workflow::AuditLog->new;
-    # $al->entry_id ($entry->id);
-    # $al->transferred_to ($entry->author_id);
-    # $al->note ($app->param ('workflow_change_note'));
-    # $al->save;
+    require MT::App;
+    my $app = MT::App->instance;
+    
+    my $log_message = $obj->class_label . " #" . $obj->id . " transferred to " . $to->name;
+    
+    $app->log ($log_message);
+}
+
+sub post_transfer_entry {
+    my ($cb, $obj, $from, $to) = @_;
+    
+    # Nix any cached author, since we've just changed it
+    delete $obj->{__cache}{author};
 }
 
 
