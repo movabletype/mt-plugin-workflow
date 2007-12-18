@@ -27,6 +27,7 @@ $plugin = MT::Plugin::Workflow->new ({
         plugin_link	=> 'http://www.apperceptive.com/plugins/workflow/',
         author_name	=> 'Apperceptive, LLC',
         author_link	=> 'http://www.apperceptive.com/',
+        doc_link    => 'README.html',
         blog_config_template	=> 'blog_config.tmpl',
         settings		=> new MT::PluginSettings ([
             # Whether or not email notifications should be sent out for transfer and publish attempts
