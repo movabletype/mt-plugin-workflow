@@ -206,7 +206,7 @@ sub edit_entry_source {
                 function updateNote() {
                     var sel = getByID('workflow_status');
                     var val = sel.options[sel.selectedIndex].value;
-                    if (val > 1) {
+                    if (val != 0) {
                         TC.removeClassName (getByID('workflow_change_note-field'), 'hidden');                        
                     }
                     else {

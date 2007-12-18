@@ -79,7 +79,7 @@ sub init_registry {
             'cms_post_save.workflow_step'               => '$Workflow::Workflow::CMS::post_workflow_step_save',
             
             'Workflow::CanPublish'          => \&can_publish,
-            'Workflow::PostTransfer.*'      => \&post_transfer,
+            'Workflow::PostTransfer'        => \&post_transfer,
             'Workflow::PostTransfer.entry'  => \&post_transfer_entry,
         },
         
@@ -171,7 +171,17 @@ sub init_cms_app {
 sub post_save_entry {
     my ($cb, $app, $obj, $orig) = @_;
     
-    $obj->workflow_update ($orig, $app->param ('workflow_status'), $app->param ('workflow_change_note'));
+    if (defined (my $res = $obj->workflow_update ($orig, $app->param ('workflow_status'), $app->param ('workflow_change_note')))) {
+        if ($res) {
+            require MT::Request;
+            my $r = MT::Request->instance;
+            $r->stash ('workflow_transferred', 1);
+        }
+        return 1;
+    }
+    else {
+        return $cb->error ($obj->errstr);
+    }
     
     # my $step = $obj->workflow_step;
     # 
@@ -225,9 +235,6 @@ sub post_save_entry {
     # $al->save;
     
     # if we got this far, an entry was transferred, so we should make a note of that
-    require MT::Request;
-    my $r = MT::Request->instance;
-    $r->stash ('workflow_transferred', 1);
 }
 
 sub _get_previous_owner {
@@ -309,50 +316,50 @@ sub entry_save {
     }
 }
 
-sub post_transfer {
-    my ($eh, $app, $e, $old_a, $auth) = @_;
-
-    return 1 if (!$plugin->get_config_value ('email_notification', 'blog:' . $e->blog_id));
-
-    require MT::Entry;
-    my $a = $e->author;
-    if ($a->email) {
-        require MT::Blog;
-        require MT::Mail;
-        my $from_addr = $app->{cfg}->EmailAddressMain || $auth->email;
-        my %head = ( To => $a->email,
-                From => $from_addr,
-                Subject => 
-                '[' . $e->blog->name . '] ' .
-                $app->translate ('Entry Transferred: [_1]', $e->title)
-                );
-
-        my $charset = $app->{cfg}->PublishCharset || 'iso-8859-1';
-        $head{'Content-Type'} = qq(text/plain; charset="$charset");
-        my $base = $app->base . $app->path . $app->{cfg}->AdminScript;
-
-        my $edit_url = $base . '?__mode=view&blog_id=' . $e->blog_id
-            . '&_type=entry&id=' . $e->id;
-
-        my $can_publish = MT->run_callbacks ('Workflow::CanPublish', $app, $a, $e);
-
-        my %params = (
-                blog_name => $e->blog->name,
-                entry_id => $e->id,
-                entry_title => $e->title,
-                edit_url => $edit_url,
-                can_publish => $can_publish,
-                );
-
-        my $body = $app->build_page ('transfer_notification.tmpl', \%params);
-        require Text::Wrap;
-        $Text::Wrap::columns = 72;
-        $body = Text::Wrap::wrap ('', '', $body, "\n\n");
-        $body .= "\n\nEdit this entry:\n<$edit_url>\n\n";
-        MT::Mail->send (\%head, $body) or 
-            $app->log ("Error sending transfer notification email to ".$a->name);
-    }
-}
+# sub post_transfer {
+#     my ($eh, $app, $e, $old_a, $auth) = @_;
+# 
+#     return 1 if (!$plugin->get_config_value ('email_notification', 'blog:' . $e->blog_id));
+# 
+#     require MT::Entry;
+#     my $a = $e->author;
+#     if ($a->email) {
+#         require MT::Blog;
+#         require MT::Mail;
+#         my $from_addr = $app->{cfg}->EmailAddressMain || $auth->email;
+#         my %head = ( To => $a->email,
+#                 From => $from_addr,
+#                 Subject => 
+#                 '[' . $e->blog->name . '] ' .
+#                 $app->translate ('Entry Transferred: [_1]', $e->title)
+#                 );
+# 
+#         my $charset = $app->{cfg}->PublishCharset || 'iso-8859-1';
+#         $head{'Content-Type'} = qq(text/plain; charset="$charset");
+#         my $base = $app->base . $app->path . $app->{cfg}->AdminScript;
+# 
+#         my $edit_url = $base . '?__mode=view&blog_id=' . $e->blog_id
+#             . '&_type=entry&id=' . $e->id;
+# 
+#         my $can_publish = MT->run_callbacks ('Workflow::CanPublish', $app, $a, $e);
+# 
+#         my %params = (
+#                 blog_name => $e->blog->name,
+#                 entry_id => $e->id,
+#                 entry_title => $e->title,
+#                 edit_url => $edit_url,
+#                 can_publish => $can_publish,
+#                 );
+# 
+#         my $body = $app->build_page ('transfer_notification.tmpl', \%params);
+#         require Text::Wrap;
+#         $Text::Wrap::columns = 72;
+#         $body = Text::Wrap::wrap ('', '', $body, "\n\n");
+#         $body .= "\n\nEdit this entry:\n<$edit_url>\n\n";
+#         MT::Mail->send (\%head, $body) or 
+#             $app->log ("Error sending transfer notification email to ".$a->name);
+#     }
+# }
 
 # Get a list of eligible editors based on a given entry
 sub _get_editors {
@@ -523,6 +530,5 @@ sub post_transfer_entry {
     # Nix any cached author, since we've just changed it
     delete $obj->{__cache}{author};
 }
-
 
 1;

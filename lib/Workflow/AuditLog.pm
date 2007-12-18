@@ -22,12 +22,22 @@ __PACKAGE__->install_properties ({
 
     indexes => {
         'id'    => 1,
-        'entry_id'  => 1,
+        'object_id'  => 1,
     },
 
     audit       => 1,
     datasource  => 'workflow_audit_log',
     primary_key => 'id',
 });
+
+sub class_label {
+    MT->translate ('Audit Log');
+}
+
+sub class_label_plural {
+    MT->translate ('Audit Logs');
+}
+
+
 
 1;

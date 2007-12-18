@@ -1,5 +1,7 @@
 package Workflow::Workflowable;
 
+use Data::Dumper;
+
 sub get_audit_log {
     my $obj = shift;
     
@@ -22,10 +24,39 @@ sub workflow_status {
     my $obj = shift;
     
     require Workflow::Status;
-    return Workflow::Status->load ({ object_id => $obj->id, object_datasource => $obj->datasource });
+    my $status = Workflow::Status->load ({ object_id => $obj->id, object_datasource => $obj->datasource });
+    return $status if ($status);
+    
+    my $class = ref ($obj);
+    $status = Workflow::Status->new;
+    
+    # Set the step bits
+    my $first_step = Workflow::Step->first_step ($obj->blog_id);
+    $status->step_id ($first_step->id) if ($first_step);
+    
+    # Set the db pointing bits
+    $status->object_id ($obj->id);
+    $status->object_datasource ($obj->datasource);
+    
+    # Grab the 'owner', either from the owner field
+    # or from the current app user
+    if (my $owner_field = $class->{__workflow}->{owner_field}) {
+        $status->owner_id ($obj->$owner_field);
+    }
+    else {
+        require MT::App;
+        my $app = MT::App->instance;
+        $status->owner_id ($app->user->id) if ($app->user);
+    }
+    
+    # There can't be a previous owner, since we're just starting here
+    $status->previous_owner_id (0);
+    
+    $status->save or return $obj->error ("Error creating status: " . $status->errstr);
+    return $status;
 }
 
-sub init_workflow {
+sub workflow_init {
     my $class = shift;
     $class = ref ($class) if (ref ($class));
     my (%params) = @_;
@@ -56,6 +87,9 @@ sub workflow_update {
     
     my $class = ref ($obj);
     
+    my $status = $obj->workflow_status or die $obj->errstr;
+    print STDERR "Status = " . Dumper ($status);
+    
     require Workflow::AuditLog;
     my $al = Workflow::AuditLog->new;
     $al->object_id ($obj->id);
@@ -76,14 +110,42 @@ sub workflow_update {
         }
         $al->edited ($is_edited);
     }
-    $al->save;
+    $al->save or die $al->errstr;
+    $status->save or die $status->errstr;
     
     # No need to keep going unless it's something *other* than 0
-    return unless ($direction);
-    
+    return 0 unless ($direction);
+
+    # At this point, there will be a transfer one way or the other,
+    # so snag the current step for the audit log
+    my $current_step = $status->step;
+    my $new_step;
     if ($direction > 0) {
+        if ($status) {
+            if ($current_step) {
+                $new_step = $current_step->next;
+                if ($new_step) {
+                    # get the list of possible owners from the next step
+                    my @editors = $new_step->members;
+                    
+                    # sort them somehow and grab the first one
+                    # - callback?
+                    # - the original automatic transfer sort based on published entries?
+                    # - simple random selection?
+                    # - all of those can be done with callbacks, to be honest, I just worry about doing db-based sorting in callbacks
+                    #   but that could be handled with a little caching
+                    
+                    $obj->_clear_transfer_score_cache;
+                    @editors = sort { $obj->_transfer_score ($a) <=> $obj->_transfer_score ($b) } @editors;
+                    
+                    my $next_owner = $editors[0];
+                    $obj->workflow_transfer ($next_owner) or return $obj->error ("Error transferring: " . $obj->errstr);
+                    $status->step_id ($new_step->id);
+                }
+            }
+        }
         # move it along to the next user in the workflow
-        $plugin->_automatic_transfer ($cb, $app, $app->user, $obj) or return $cb->error ($cb->errstr);
+        # $plugin->_automatic_transfer ($cb, $app, $app->user, $obj) or return $cb->error ($cb->errstr);
     }
     elsif ($direction < 0) {
         # bounce it back to the previous owner
@@ -91,11 +153,10 @@ sub workflow_update {
         my $old_prev_owner;
         
         # to get prev prev owner (to support firing things back up multiple steps)
-        my $step = $obj->workflow_step;
-        if ($step) {
-            if (my $prev = $step->previous) {
+        if ($current_step) {
+            if ($new_step = $current_step->previous) {
                 # find the most recent audit log instance where the obj was transferred to this step
-                my $prev_al = Workflow::AuditLog->load ({ object_id => $obj->id, object_datasource => $obj->datasource, new_step_id => $prev->id},
+                my $prev_al = Workflow::AuditLog->load ({ object_id => $obj->id, object_datasource => $obj->datasource, new_step_id => $new_step->id},
                     { sort => 'created_on', direction => 'descend', limit => 1 }
                 );
                 if ($prev_al) {
@@ -106,10 +167,8 @@ sub workflow_update {
         
         if ($prev_owner) {
             $obj->workflow_transfer ($prev_owner, $old_prev_owner) or return $obj->error ("Error transferring: " . $obj->errstr);
+            
         }
-    }
-    else {
-        return;
     }
     
     my $prev_owner = $obj->workflow_previous_owner;
@@ -118,8 +177,10 @@ sub workflow_update {
     # There was a transfer, so add that to the log
     $al->transferred_from ($prev_owner->id) if ($prev_owner);
     $al->transferred_to ($owner->id) if ($owner);
+    $al->old_step_id ($current_step->id);
+    $al->new_step_id ($new_step->id);
     $al->note ($note);
-    $al->save;
+    $al->save && $status->save;
 }
 
 sub workflow_transfer {
@@ -222,5 +283,22 @@ sub workflow_previous_owner {
     return MT::Author->load ($status->previous_owner_id);
 }
 
+sub _clear_transfer_score_cache {
+    my $obj = shift;
+    $obj->{__workflow}->{transfer_score} = {};
+}
+
+sub _transfer_score {
+    my $obj = shift;
+    my ($author) = @_;
+    
+    # Grab from cache if it exists (because it could be a 0 value)
+    return $obj->{__workflow}->{transfer_score}->{$author->id} if (exists $obj->{__workflow}->{transfer_score}->{$author->id});
+
+    # for now, we'll just get the latest status change they are involved in
+    require Workflow::Status;
+    my $status = Workflow::Status->load ({ modified_by => $author->id }, { sort => 'modified_on', direction => 'descend', limit => 1 });
+    $obj->{__workflow}->{transfer_score}->{$author->id} = $status ? $status->modified_on : 0;
+}
 
 1;

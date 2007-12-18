@@ -46,9 +46,9 @@ sub previous {
 
 sub members {
     my $obj = shift;
-    require Workflow::StepAssocation;
+    require Workflow::StepAssociation;
     
-    my @assocs = Workflow::StepAssocation->load ({ blog_id => $obj->blog_id, step_id => $obj->id });
+    my @assocs = Workflow::StepAssociation->load ({ blog_id => $obj->blog_id, step_id => $obj->id });
     my @authors;
     foreach my $assoc (@assocs) {
         push @authors, $assoc->authors;
@@ -58,6 +58,12 @@ sub members {
     my %seen = ();
     @authors = grep { $seen{$_->id}++ } @authors;
     @authors;
+}
+
+sub first_step {
+    my $class = shift;
+    my ($blog_id) = @_;
+    return $class->load ({ blog_id => $blog_id }, { limit => 1, direction => 'ascend', sort => 'order' });
 }
 
 

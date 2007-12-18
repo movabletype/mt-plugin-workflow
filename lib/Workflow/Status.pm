@@ -26,4 +26,19 @@ __PACKAGE__->install_properties ({
     primary_key => 'id',
 });
 
+sub class_label {
+    MT->translate ('Workflow Step');
+}
+
+sub class_label {
+    MT->translate ('Workflow Steps');
+}
+
+sub step {
+    my $obj = shift;
+    require Workflow::Step;
+    return Workflow::Step->load ($obj->step_id);
+}
+
+
 1;
