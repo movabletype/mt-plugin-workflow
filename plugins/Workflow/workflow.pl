@@ -18,7 +18,7 @@ use Workflow::Step;
 use Workflow::StepAssociation;
 
 use vars qw($VERSION $plugin);
-$VERSION = '1.9';
+$VERSION = '1.9.1';
 $plugin = MT::Plugin::Workflow->new ({
         id          => 'Workflow',
         name		=> 'Workflow',
