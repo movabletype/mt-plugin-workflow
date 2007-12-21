@@ -198,7 +198,6 @@ sub edit_entry_source {
     my ($cb, $app, $tmpl) = @_;
     
     my $new = q{
-        <mt:unless name="status_publish">
         <mtapp:setting
             id="workflow_status"
             label="Workflow Status">
@@ -226,7 +225,6 @@ sub edit_entry_source {
             shown="0">
             <textarea type="text" class="full-width short" rows="" cols="" id="workflow_change_note" name="workflow_change_note"></textarea>
         </mtapp:setting>
-        </mt:unless>
     };
     my $old = '<h3><__trans phrase="Publishing"></h3>';
     
