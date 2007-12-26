@@ -66,5 +66,10 @@ sub first_step {
     return $class->load ({ blog_id => $blog_id }, { limit => 1, direction => 'ascend', sort => 'order' });
 }
 
+sub last_step {
+    my $class = shift;
+    my ($blog_id) = @_;
+    return $class->load ({ blog_id => $blog_id }, { limit => 1, direction => 'descend', sort => 'order' });
+}
 
 1;
