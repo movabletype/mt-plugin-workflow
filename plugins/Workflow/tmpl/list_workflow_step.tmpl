@@ -1,6 +1,5 @@
 <mt:setvarblock name="page_title"><__trans phrase="Edit Workflow"></mt:setvarblock>
 
-<mt:include name="include/header.tmpl">
 <mt:setvarblock name="action_buttons">
                 <a href="javascript:void(0)"
                     onclick="doRemoveItems(getByID('<$mt:var name="object_type"$>-listing-form'), '<mt:var name="object_label" lower_case="1" escape="js">', '<mt:var name="object_label_plural" lower_case="1" escape="js">'); return false;"
@@ -8,8 +7,10 @@
                     title="<__trans phrase="Delete selected [_1] (x)" params="<mt:var name="object_label_plural">">"
                     ><__trans phrase="Delete"></a>
 </mt:setvarblock>
+<mt:setvarblock name="content_header">
 <p id="create-new-link"><a href="<$mt:var name="mt_url"$>?__mode=view&amp;_type=<mt:var name="object_type">&amp;blog_id=<$mt:var name="blog_id"$>" class="icon-left icon-create"><__trans phrase="Create [_1] at the end" params="<mt:var name="object_label" lower_case="1">"></a></p>
-
+</mt:setvarblock>
+<mt:include name="include/header.tmpl">
 <mtapp:listing>
     <mt:if __first__>
         <thead>
