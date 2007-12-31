@@ -71,6 +71,7 @@ sub init_registry {
         },
         callbacks   => {
             'MT::App::CMS::template_param.edit_entry'   => '$Workflow::Workflow::CMS::edit_entry_param',
+            'cms_pre_save.entry'                        => \&pre_save_entry,
             'cms_post_save.entry'                       => \&post_save_entry,
             
             'MT::App::CMS::template_source.list_entry'  => '$Workflow::Workflow::CMS::list_entry_source',
@@ -167,6 +168,17 @@ sub init_cms_app {
         }
     }
 }
+
+sub pre_save_entry {
+    my ($cb, $app, $obj) = @_;
+    
+    my $status = $app->param ('workflow_status');
+    if ($status > 1) {
+        $obj->status ($status);
+    }
+    1;
+}
+
 
 sub post_save_entry {
     my ($cb, $app, $obj, $orig) = @_;
