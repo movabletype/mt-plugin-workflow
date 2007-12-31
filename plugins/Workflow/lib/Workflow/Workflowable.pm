@@ -140,7 +140,6 @@ sub workflow_update {
                     
                     my $next_owner = $editors[0];
                     $obj->workflow_transfer ($next_owner) or return $obj->error ("Error transferring: " . $obj->errstr);
-                    $status->step_id ($new_step->id);
                 }
             }
         }
@@ -179,6 +178,7 @@ sub workflow_update {
     $al->transferred_to ($owner->id) if ($owner);
     $al->old_step_id ($current_step->id);
     $al->new_step_id ($new_step->id);
+    $status->step_id ($new_step->id);
     $al->note ($note);
     $al->save && $status->save;
 }
