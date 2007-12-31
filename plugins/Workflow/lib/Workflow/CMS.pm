@@ -212,7 +212,10 @@ sub edit_entry_param {
     $param->{workflow_current_step_name} = $step->name;
     
     if (!$step->next) {
-        $param->{workflow_next_step_published} = 1;
+        my $perms = $app->permissions;
+        if ($perms->can_publish_post) {
+            $param->{workflow_next_step_published} = 1;            
+        }
     }
     else {
         $param->{workflow_next_step_name} = $step->next->name;
