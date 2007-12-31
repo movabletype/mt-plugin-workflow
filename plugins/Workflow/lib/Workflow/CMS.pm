@@ -194,50 +194,68 @@ sub view_audit_log {
 ### Callbacks
 ###
 
-sub edit_entry_source {
-    my ($cb, $app, $tmpl) = @_;
-    
-    my $new = q{
-        <mtapp:setting
-            id="workflow_status"
-            label="Workflow Status">
-            <script type="text/javascript">
-                function updateNote() {
-                    var sel = getByID('workflow_status');
-                    var val = sel.options[sel.selectedIndex].value;
-                    if (val != 0) {
-                        TC.removeClassName (getByID('workflow_change_note-field'), 'hidden');                        
-                    }
-                    else {
-                        TC.addClassName (getByID('workflow_change_note-field'), 'hidden');
-                    }
-                }
-            </script>
-            <select name="workflow_status" id="workflow_status" class="full-width" onchange="updateNote();">
-                <option value="0">Unfinished</option>
-                <option value="1">Ready for next step</option>
-                <mt:if name="workflow_has_previous"><option value="-1">Return to previous step</option></mt:if>
-            </select>
-        </mtapp:setting>
-        <mtapp:setting
-            id="workflow_change_note"
-            label="Workflow Change Note"
-            shown="0">
-            <textarea type="text" class="full-width short" rows="" cols="" id="workflow_change_note" name="workflow_change_note"></textarea>
-        </mtapp:setting>
-    };
-    my $old = '<h3><__trans phrase="Publishing"></h3>';
-    
-    $$tmpl =~ s{\Q$old\E}{$old$new}ms;
-}
-
 sub edit_entry_param {
     my ($cb, $app, $param, $tmpl) = @_;
     
     return if (!$param->{id});
     my $prev_owner = plugin()->_get_previous_owner ($param->{id});
     
-    $param->{workflow_has_previous} = ($prev_owner && $param->{author_id} != $prev_owner->id);
+    require MT::Entry;
+    my $e = MT::Entry->load ($param->{id});
+    my $step = $e->workflow_step;
+    
+    $param->{workflow_has_previous_step} = $step->previous;
+    if ($param->{workflow_has_previous_step}) {
+        $param->{workflow_previous_step_name} = $step->previous->name;
+    }
+    
+    $param->{workflow_current_step_name} = $step->name;
+    
+    if (!$step->next) {
+        $param->{workflow_next_step_published} = 1;
+    }
+    else {
+        $param->{workflow_next_step_name} = $step->next->name;
+    }
+    
+    my $status_field = $tmpl->getElementById ('status');
+    $status_field->setAttribute ('shown', '0');
+    
+    my $workflow_status_field = $tmpl->createElement ('app:setting', { id => 'workflow_status', label => 'Status' });
+    my $innerHTML = qq{
+        <script type="text/javascript">
+            function updateNote() {
+                var sel = getByID('workflow_status');
+                var val = sel.options[sel.selectedIndex].value;
+                if (val != 0) {
+                    TC.removeClassName (getByID('workflow_change_note-field'), 'hidden');                        
+                }
+                else {
+                    TC.addClassName (getByID('workflow_change_note-field'), 'hidden');
+                }
+            }
+        </script>
+    
+    <select id="workflow_status" name="workflow_status" class="full-width" onchange="updateNote();">
+        <mt:if name="workflow_has_previous_step"><option value="-1">Return to previous step: <mt:var name="workflow_previous_step_name"></option></mt:if>
+        <option value="0" selected="selected">Remain in: <mt:var name="workflow_current_step_name"></option>
+        <mt:if name="workflow_next_step_published">
+            <option value="2">Published</option>
+            <option value="4">Scheduled</option>
+            <mt:else>
+            <option value="1">Ready for next step: <mt:var name="workflow_next_step_name"></option>
+        </mt:if>
+    </select>
+    };
+    $workflow_status_field->innerHTML ($innerHTML);
+    $tmpl->insertAfter ($workflow_status_field, $status_field);
+    
+    my $workflow_change_field = $tmpl->createElement ('app:setting', { id => 'workflow_change_note', label => 'Change Note', shown => 0 });
+    $innerHTML = qq{
+        <textarea type="text" class="full-width short" rows="" cols="" id="workflow_change_note" name="workflow_change_note"></textarea>
+    };
+    $workflow_change_field->innerHTML ($innerHTML);
+    $tmpl->insertAfter ($workflow_change_field, $workflow_status_field);
 }
 
 sub list_entry_source {

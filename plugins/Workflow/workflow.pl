@@ -70,7 +70,6 @@ sub init_registry {
             'workflow_status'       => 'Workflow::Status',
         },
         callbacks   => {
-            'MT::App::CMS::template_source.edit_entry'  => '$Workflow::Workflow::CMS::edit_entry_source',
             'MT::App::CMS::template_param.edit_entry'   => '$Workflow::Workflow::CMS::edit_entry_param',
             'cms_post_save.entry'                       => \&post_save_entry,
             
