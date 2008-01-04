@@ -19,7 +19,12 @@ MT->add_plugin_action ('entry', 'workflow.cgi?__mode=transfer_entry_select', "Tr
 MT->add_plugin_action ('blog', 'workflow.cgi?__mode=admin_publish_perms', 'Edit Publish Permissions');
 
 require Workflow;
-my $plugin = Workflow->new ();
+my $plugin = Workflow->new ({
+    settings    => new MT::PluginSettings ([
+        [ 'workflow_enabled', { Default => 1, Scope => 'blog' } ],
+    ]),
+    blog_config_template    => 'blog_config.tmpl'   
+});
 MT->add_plugin ($plugin);
 # Remember with these callbacks, total parameters are: eh, app, perm
 
@@ -102,6 +107,8 @@ sub can_publish {
 
 sub entry_save {
   my ($eh, $app, $e) = @_;
+
+  return unless $plugin->get_config_value ('workflow_enabled', 'blog:' . $app->blog->id);
   my $author = $app->{author};
 
   require Workflow;
