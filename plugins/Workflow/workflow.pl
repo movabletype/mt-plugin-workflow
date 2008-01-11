@@ -18,7 +18,7 @@ use Workflow::Step;
 use Workflow::StepAssociation;
 
 use vars qw($VERSION $plugin);
-$VERSION = '1.9.1';
+$VERSION = '1.9.2';
 $plugin = MT::Plugin::Workflow->new ({
         id          => 'Workflow',
         name		=> 'Workflow',
@@ -93,6 +93,7 @@ sub init_registry {
                     list_workflow_step  => '$Workflow::Workflow::CMS::list_workflow_step',
                     view_workflow_step  => '$Workflow::Workflow::CMS::view_workflow_step',
                     view_audit_log  => '$Workflow::Workflow::CMS::view_audit_log',
+                    save_workflow_order  => '$Workflow::Workflow::CMS::save_workflow_order',
                 },
                 page_actions    => {
                     entry  => {

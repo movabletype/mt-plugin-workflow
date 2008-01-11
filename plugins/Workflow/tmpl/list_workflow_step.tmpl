@@ -1,11 +1,31 @@
 <mt:setvarblock name="page_title"><__trans phrase="Edit Workflow"></mt:setvarblock>
 
+<mt:setvarblock name="html_head" append="1">
+<script type="text/javascript" src="<mt:var name="static_uri">plugins/Workflow/flexRows.js"></script>
+<script type="text/javascript">
+var wf_step_list = [];
+<mt:loop name="object_loop">
+wf_step_list[wf_step_list.length] = '<mt:var name="id">';
+function saveOrder(f) {
+    f.elements["__mode"].value = 'save_workflow_order';
+    f.submit();
+}
+
+</mt:loop>
+</script>
+
+</mt:setvarblock>
+
 <mt:setvarblock name="action_buttons">
                 <a href="javascript:void(0)"
                     onclick="doRemoveItems(getByID('<$mt:var name="object_type"$>-listing-form'), '<mt:var name="object_label" lower_case="1" escape="js">', '<mt:var name="object_label_plural" lower_case="1" escape="js">'); return false;"
                     accesskey="x"
                     title="<__trans phrase="Delete selected [_1] (x)" params="<mt:var name="object_label_plural">">"
                     ><__trans phrase="Delete"></a>
+                <a href="javascript:void(0)"
+                    onclick="saveOrder(getByID('<$mt:var name="object_type"$>-listing-form')); return false;"
+                    title="<__trans phrase="Save Order">"><__trans phrase="Save Order"></a>
+
 </mt:setvarblock>
 <mt:setvarblock name="content_header">
 <p id="create-new-link"><a href="<$mt:var name="mt_url"$>?__mode=view&amp;_type=<mt:var name="object_type">&amp;blog_id=<$mt:var name="blog_id"$>" class="icon-left icon-create"><__trans phrase="Create [_1] at the end" params="<mt:var name="object_label" lower_case="1">"></a></p>
@@ -16,13 +36,20 @@
         <thead>
             <tr>
                 <th class="cb"><input type="checkbox" name="id-head" value="all" class="select" /></th>
+                <th class="cb">&nbsp;</th>
                 <th>Name</th>
             </tr>
         </thead>
         <tbody>
     </mt:if>
-    <tr class="<mt:if name="__odd__">odd<mt:else>even</mt:if>">
+    <tr class="<mt:if name="__odd__">odd<mt:else>even</mt:if>" id="<mt:var name="id">_row">
         <td class="cb"><input type="checkbox" name="id" value="<mt:var name="id">" class="select" /></td>
+        <td nowrap="nowrap">
+<input type="hidden" name="<mt:var name="id">_order" id="<mt:var name="id">_order" value="<mt:var name="order">" />
+<a href="javascript:void(0);" onclick="moveRow('up', '<mt:var name="id">')"><img src="<mt:var name="static_uri">plugins/Workflow/nav-arrow-up.gif" border="0" /></a> 
+<a href="javascript:void(0);" onclick="moveRow('down', '<mt:var name="id">')"><img src="<mt:var name="static_uri">plugins/Workflow/nav-arrow-down.gif" border="0" /></a>
+</td>
+
         <td><a href="<$mt:var name="script_url"$>?__mode=view&amp;_type=<mt:var name="object_type">&amp;id=<$mt:var name="id"$>&amp;blog_id=<$mt:var name="blog_id"$>"><mt:var name="name"></a></td>
     </tr>
     <mt:if __last__>
