@@ -211,12 +211,21 @@ sub save_workflow_order {
 sub edit_entry_param {
     my ($cb, $app, $param, $tmpl) = @_;
     
-    return if (!$param->{id});
-    my $prev_owner = plugin()->_get_previous_owner ($param->{id});
+    my $step;
+    if (!$param->{id}) {
+        require Workflow::Step;
+        $step = Workflow::Step->first_step ($param->{blog_id});
+    }
+    else {
+        require MT::Entry;
+        my $e = MT::Entry->load ($param->{id});
+        $step = $e->workflow_step;
+        my $prev_owner = plugin()->_get_previous_owner ($param->{id});
+    }
     
-    require MT::Entry;
-    my $e = MT::Entry->load ($param->{id});
-    my $step = $e->workflow_step;
+    # We can't find a step, kick out
+    # workflow_step takes care of grabbing the first step if the entry isn't in a step yet
+    return if (!$step);
     
     $param->{workflow_has_previous_step} = $step->previous;
     if ($param->{workflow_has_previous_step}) {
