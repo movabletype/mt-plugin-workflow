@@ -12,6 +12,7 @@ sub workflow_step {
     my $obj = shift;
     
     if (my $status = $obj->workflow_status) {
+        return undef unless $status->step_id;
         require Workflow::Step;
         return Workflow::Step->load ($status->step_id);
     }
@@ -83,12 +84,11 @@ sub workflow_init {
 
 sub workflow_update {
     my $obj = shift;
-    my ($orig, $direction, $note) = @_;
+    my ($orig, $direction, $note, $transfer) = @_;
     
     my $class = ref ($obj);
     
     my $status = $obj->workflow_status or die $obj->errstr;
-    print STDERR "Status = " . Dumper ($status);
     
     require Workflow::AuditLog;
     my $al = Workflow::AuditLog->new;
@@ -116,6 +116,11 @@ sub workflow_update {
     # No need to keep going unless it's something *other* than 0
     return 0 unless ($direction);
 
+    if ($direction eq 'transfer_to') {
+        $obj->workflow_transfer ($transfer) or return $obj->error ("Error transferring: " . $obj->errstr);
+        return 1;
+    }
+    
     # At this point, there will be a transfer one way or the other,
     # so snag the current step for the audit log
     my $current_step = $status->step;
@@ -176,9 +181,9 @@ sub workflow_update {
     # There was a transfer, so add that to the log
     $al->transferred_from ($prev_owner->id) if ($prev_owner);
     $al->transferred_to ($owner->id) if ($owner);
-    $al->old_step_id ($current_step->id);
-    $al->new_step_id ($new_step->id);
-    $status->step_id ($new_step->id);
+    $al->old_step_id ($current_step->id) if ($current_step);
+    $al->new_step_id ($new_step->id) if ($new_step);
+    $status->step_id ($new_step->id) if ($new_step);
     $al->note ($note);
     $al->save && $status->save;
 }

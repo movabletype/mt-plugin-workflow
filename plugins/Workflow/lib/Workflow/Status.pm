@@ -36,6 +36,7 @@ sub class_label {
 
 sub step {
     my $obj = shift;
+    return undef if (!$obj->step_id);
     require Workflow::Step;
     return Workflow::Step->load ($obj->step_id);
 }

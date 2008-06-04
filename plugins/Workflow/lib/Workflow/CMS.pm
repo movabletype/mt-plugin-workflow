@@ -210,45 +210,83 @@ sub save_workflow_order {
 
 sub edit_entry_param {
     my ($cb, $app, $param, $tmpl) = @_;
-    
+
     my $step;
+    my $e;
     if (!$param->{id}) {
         require Workflow::Step;
         $step = Workflow::Step->first_step ($param->{blog_id});
     }
     else {
         require MT::Entry;
-        my $e = MT::Entry->load ($param->{id});
+        $e = MT::Entry->load ($param->{id});
         $step = $e->workflow_step;
         my $prev_owner = plugin()->_get_previous_owner ($param->{id});
     }
+
+    my $status_field = $tmpl->getElementById ('status');
+    $status_field->setAttribute ('shown', '0');
+
+    # grab the current owner and publish status
+    my $owner = $e ? $e->author_id : $param->{author_id};
+    my $published = $e ? $e->status == 2 || $e->status == 4 : 0;
+
+    require MT::Author;
+    require MT::Permission;
+    my @authors = MT::Author->load ({ status => MT::Author::ACTIVE, type => MT::Author::AUTHOR },
+        {
+            join    => MT::Permission->join_on ('author_id', [{ blog_id => $param->{blog_id}, author_id => { not => $owner } } => -and => [{ permissions => { like => '%publish_post%' } }, $published ? () : (-or => { permissions => { like => '%create_post%' } }) ] ], { unique => 1 }),
+        });
+    
+    my %names = map { $_->id => $_->nickname || $_->name } @authors;
+    @authors = sort { $names{$a->id} cmp $names{$b->id} } @authors;
+    
+    $param->{transfer_author_loop} = [ map { { transfer_author_id => $_->id, transfer_author_name => $names{$_->id} } } @authors ];
+
+    my $workflow_author_transfer_field = $tmpl->createElement ('app:setting', { id => 'workflow_author_transfer', label => 'Transfer To', shown => 0 });
+    my $innerHTML = qq{
+        <select name="workflow_author_transfer" id="workflow_author_transfer">
+            <option value="">Select an author</option>
+            <mt:loop name="transfer_author_loop">
+                <option value="<mt:var name="transfer_author_id">"><mt:var name="transfer_author_name"></option>
+            </mt:loop>
+        </select>
+    };
+    $workflow_author_transfer_field->innerHTML ($innerHTML);
+    $tmpl->insertAfter ($workflow_author_transfer_field, $status_field);
     
     # We can't find a step, kick out
     # workflow_step takes care of grabbing the first step if the entry isn't in a step yet
-    return if (!$step);
-    
-    $param->{workflow_has_previous_step} = $step->previous;
-    if ($param->{workflow_has_previous_step}) {
-        $param->{workflow_previous_step_name} = $step->previous->name;
+    # return if (!$step);
+   
+    if ($step) {
+        $param->{workflow_has_step} = 1;
+        $param->{workflow_has_previous_step} = $step->previous;
+        if ($param->{workflow_has_previous_step}) {
+            $param->{workflow_previous_step_name} = $step->previous->name;
+        }
+
+        $param->{workflow_current_step_name} = $step->name;
+
+        if (!$step->next) {
+            my $perms = $app->permissions;
+            if ($perms->can_publish_post) {
+                $param->{workflow_next_step_published} = 1;            
+            }
+        }
+        else {
+            $param->{workflow_next_step_name} = $step->next->name;
+        }        
     }
-    
-    $param->{workflow_current_step_name} = $step->name;
-    
-    if (!$step->next) {
+    else {
         my $perms = $app->permissions;
         if ($perms->can_publish_post) {
             $param->{workflow_next_step_published} = 1;            
         }
     }
-    else {
-        $param->{workflow_next_step_name} = $step->next->name;
-    }
-    
-    my $status_field = $tmpl->getElementById ('status');
-    $status_field->setAttribute ('shown', '0');
-    
+        
     my $workflow_status_field = $tmpl->createElement ('app:setting', { id => 'workflow_status', label => 'Status' });
-    my $innerHTML = qq{
+    $innerHTML = qq{
         <script type="text/javascript">
             function updateNote() {
                 var sel = getByID('workflow_status');
@@ -259,22 +297,33 @@ sub edit_entry_param {
                 else {
                     TC.addClassName (getByID('workflow_change_note-field'), 'hidden');
                 }
+                
+                if (val == 'transfer_to') {
+                    TC.removeClassName (getByID('workflow_author_transfer-field'), 'hidden');
+                }
+                else {
+                    TC.addClassName (getByID('workflow_author_transfer-field'), 'hidden');
+                }
             }
         </script>
     
     <select id="workflow_status" name="workflow_status" class="full-width" onchange="updateNote();">
         <mt:if name="workflow_has_previous_step"><option value="-1">Return to previous step: <mt:var name="workflow_previous_step_name"></option></mt:if>
-        <option value="0" selected="selected">Remain in: <mt:var name="workflow_current_step_name"></option>
+        <mt:if name="workflow_has_step">
+            <option value="0" selected="selected">Remain in: <mt:var name="workflow_current_step_name"></option>
+            <mt:else><option value="1"<mt:if name="status_draft"> selected="selected"</mt:if>>Unpublished</option></mt:else>
+        </mt:if>
         <mt:if name="workflow_next_step_published">
-            <option value="2">Published</option>
-            <option value="4">Scheduled</option>
+            <option value="2"<mt:if name="status_publish"> selected="selected"</mt:if>>Published</option>
+            <option value="4"<mt:if name="status_future"> selected="selected"</mt:if>>Scheduled</option>
             <mt:else>
             <option value="1">Ready for next step: <mt:var name="workflow_next_step_name"></option>
         </mt:if>
+        <option value="transfer_to">Transfer...</option>
     </select>
     };
     $workflow_status_field->innerHTML ($innerHTML);
-    $tmpl->insertAfter ($workflow_status_field, $status_field);
+    $tmpl->insertBefore ($workflow_status_field, $workflow_author_transfer_field);
     
     my $workflow_change_field = $tmpl->createElement ('app:setting', { id => 'workflow_change_note', label => 'Change Note', shown => 0 });
     $innerHTML = qq{
@@ -282,6 +331,7 @@ sub edit_entry_param {
     };
     $workflow_change_field->innerHTML ($innerHTML);
     $tmpl->insertAfter ($workflow_change_field, $workflow_status_field);
+    
 }
 
 sub list_entry_source {
