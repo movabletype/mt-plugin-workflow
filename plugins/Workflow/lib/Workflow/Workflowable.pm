@@ -110,8 +110,6 @@ sub workflow_update {
         }
         $al->edited ($is_edited);
     }
-    $al->save or die $al->errstr;
-    $status->save or die $status->errstr;
     
     # No need to keep going unless it's something *other* than 0
     return 0 unless ($direction);
@@ -185,7 +183,8 @@ sub workflow_update {
     $al->new_step_id ($new_step->id) if ($new_step);
     $status->step_id ($new_step->id) if ($new_step);
     $al->note ($note);
-    $al->save && $status->save;
+    $al->save or die $al->errstr;
+    $status->save or die $status->errstr;
 }
 
 sub workflow_transfer {
