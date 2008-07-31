@@ -174,7 +174,7 @@ sub pre_save_entry {
     my ($cb, $app, $obj) = @_;
     
     my $status = $app->param ('workflow_status');
-    if ($status ne 'transfer_to' && $status > 1) {
+    if ($status ne 'transfer_to' && ($status > 1 || ($status == 1 && ($obj->status == MT::Entry::RELEASE() || $obj->status == MT::Entry::FUTURE())))) {
         $obj->status ($status);
     }
     1;
