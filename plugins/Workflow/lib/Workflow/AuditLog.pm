@@ -25,6 +25,11 @@ __PACKAGE__->install_properties ({
         'object_id'  => 1,
     },
 
+    defaults => {
+	    'new_step_id'   => 0,
+	    'old_step_id'   => 0,
+    },
+
     audit       => 1,
     datasource  => 'workflow_audit_log',
     primary_key => 'id',

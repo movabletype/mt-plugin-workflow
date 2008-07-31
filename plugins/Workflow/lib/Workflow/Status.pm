@@ -20,6 +20,10 @@ __PACKAGE__->install_properties ({
         'object_id' => 1,
         'step_id'   => 1,
     },
+    
+    defaults => {
+        'step_id'   => 0,
+    },
 
     audit       => 1,
     datasource  => 'workflow_status',

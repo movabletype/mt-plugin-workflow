@@ -179,8 +179,8 @@ sub workflow_update {
     # There was a transfer, so add that to the log
     $al->transferred_from ($prev_owner->id) if ($prev_owner);
     $al->transferred_to ($owner->id) if ($owner);
-    $al->old_step_id ($current_step->id) if ($current_step);
-    $al->new_step_id ($new_step->id) if ($new_step);
+    $al->old_step_id ($current_step ? $current_step->id : 0);
+    $al->new_step_id ($new_step_id ? $new_step->id : $current_step ? $current_step->id : 0);
     $status->step_id ($new_step->id) if ($new_step);
     $al->note ($note);
     $al->save or die $al->errstr;
