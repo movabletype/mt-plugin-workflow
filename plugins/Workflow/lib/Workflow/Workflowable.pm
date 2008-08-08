@@ -115,7 +115,7 @@ sub workflow_update {
     return 0 unless ($direction);
 
     if ($direction eq 'transfer_to') {
-        $obj->workflow_transfer ($transfer) or return $obj->error ("Error transferring: " . $obj->errstr);
+        $obj->workflow_transfer ($note, $transfer) or return $obj->error ("Error transferring: " . $obj->errstr);
         return 1;
     }
     
@@ -142,7 +142,7 @@ sub workflow_update {
                     @editors = sort { $obj->_transfer_score ($a) <=> $obj->_transfer_score ($b) } @editors;
                     
                     my $next_owner = $editors[0];
-                    $obj->workflow_transfer ($next_owner) or return $obj->error ("Error transferring: " . $obj->errstr);
+                    $obj->workflow_transfer ($note, $next_owner) or return $obj->error ("Error transferring: " . $obj->errstr);
                 }
             }
         }
@@ -168,7 +168,7 @@ sub workflow_update {
         }
         
         if ($prev_owner) {
-            $obj->workflow_transfer ($prev_owner, $old_prev_owner) or return $obj->error ("Error transferring: " . $obj->errstr);
+            $obj->workflow_transfer ($note, $prev_owner, $old_prev_owner) or return $obj->error ("Error transferring: " . $obj->errstr);
             
         }
     }
@@ -189,7 +189,7 @@ sub workflow_update {
 
 sub workflow_transfer {
     my $obj = shift;
-    my ($to, $prev) = @_;
+    my ($note, $to, $prev) = @_;
     
     # Make sure we have an author reference here
     require MT::Author;
@@ -211,7 +211,7 @@ sub workflow_transfer {
         # Probably because it will allow callback writers to assume that the transfer has been approved
         # by the time the PreTransfer callback is made.
         # That is not an assumption that can be made in CanTransfer as a later callback might kick back a disapproval
-        MT->run_callbacks ('Workflow::PreTransfer.' . $obj->datasource, $obj, $old_owner, $to);
+        MT->run_callbacks ('Workflow::PreTransfer.' . $obj->datasource, $obj, $old_owner, $to, $note);
         
         # Perform the actual entry transfer
         # $plugin->_transfer_entry ($eh, $app, %params) or return $eh->error ($eh->errstr);
@@ -221,7 +221,7 @@ sub workflow_transfer {
         $obj->save or return $obj->error ("Error transferring: " . $obj->errstr);
         
         # Run the PostTransfer callbacks
-        MT->run_callbacks ('Workflow::PostTransfer.' . $obj->datasource, $obj, $old_owner, $to);
+        MT->run_callbacks ('Workflow::PostTransfer.' . $obj->datasource, $obj, $old_owner, $to, $note);
         
         # Entry was successfully transfereed, so return a true value
         return 1;

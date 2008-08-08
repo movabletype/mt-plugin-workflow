@@ -52,7 +52,7 @@ $plugin = MT::Plugin::Workflow->new ({
             } ( '', 'DisplayName', 'Email', 'Link', 'Nickname', 'URL', 'Username'),
         },
         
-        schema_version  => '0.6',
+        schema_version  => '0.61',
 });
 MT->add_plugin ($plugin);
 
@@ -114,6 +114,14 @@ sub init_registry {
                         permission  => 'edit_all_posts',
                         view    => 'blog',
                     }
+                }
+            }
+        },
+        default_templates   => {
+            base_path   => 'tmpl',
+            'global:email'  => {
+                'transfer_notification' => {
+                    label   => 'Workflow Transfer Notification',
                 }
             }
         }
@@ -538,10 +546,74 @@ sub post_transfer {
 }
 
 sub post_transfer_entry {
-    my ($cb, $obj, $from, $to) = @_;
+    my ($cb, $obj, $from, $to, $note) = @_;
     
     # Nix any cached author, since we've just changed it
     delete $obj->{__cache}{author};
+    
+    return 1 if (!$plugin->get_config_value ('email_notification', 'blog:' . $obj->blog_id));
+    
+    # edge case, but it'd be silly to send this email
+    return 1 if ($to->id == $from->id);
+
+    require MT::Entry;
+    my $a = $to;
+    if ($a->email) {
+        require MT::Blog;
+        my $blog = $obj->blog;
+        require MT::Mail;
+        
+        require MT::App;
+        my $app = MT::App->instance;
+        my $cfg = $app->{cfg};
+        my $from_addr = $cfg->EmailAddressMain || $from->email || $to->email;
+        my %head = (
+            id => 'transfer_notification',
+            To => $a->email,
+            From => $from_addr,
+            Subject => 
+            '[' . $blog->name . '] ' .
+            $app->translate ('Entry Transferred: [_1]', $obj->title)
+        );
+
+        # swiped from App.pm
+        my $charset = $cfg->MailEncoding || $cfg->PublishCharset;
+        $head{'Content-Type'} = qq(text/plain; charset="$charset");
+
+        my $base;
+        {
+            local $app->{is_admin} = 1;
+            $base = $app->base . $app->mt_uri;
+        }
+        if ( $base =~ m!^/! ) {
+            my ($blog_domain) = $blog->site_url =~ m|(.+://[^/]+)|;
+            $base = $blog_domain . $base;
+        }
+        # end swipe
+
+        my $edit_url = $base . $app->uri_params (
+            mode    => 'view',
+            args    => {
+                blog_id => $obj->blog_id,
+                _type   => 'entry',
+                id      => $obj->id,
+            }
+        );
+
+        my $can_publish = MT->run_callbacks ('Workflow::CanPublish', $app, $a, $obj);
+
+        my %params = (
+            blog    => $obj->blog,
+            entry     => $obj,
+            edit_url => $edit_url,
+            can_publish => $can_publish,
+            change_note => $note,
+        );
+
+        my $body = $app->build_email ('transfer_notification.tmpl', \%params);
+        MT::Mail->send (\%head, $body) or 
+        $app->log ("Error sending transfer notification email to ".$a->name);
+    }    
 }
 
 1;
