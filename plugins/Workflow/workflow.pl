@@ -43,14 +43,6 @@ $plugin = MT::Plugin::Workflow->new ({
             'Workflow::PostTransfer'        => \&post_transfer,
             'Workflow::PostPublishAttempt'  => \&post_publish_attempt,
         },
-              
-        template_tags   => {
-            map { 
-                my $old_tag = 'EntryAuthor' . $_;
-                my $new_tag = 'EntryCreator' . $_;
-                $new_tag => sub { workflow_tag_runner ( $old_tag , @_ ) }
-            } ( '', 'DisplayName', 'Email', 'Link', 'Nickname', 'URL', 'Username'),
-        },
         
         schema_version  => '0.61',
 });
@@ -124,7 +116,17 @@ sub init_registry {
                     label   => 'Workflow Transfer Notification',
                 }
             }
-        }
+        },
+        tags   => {
+            function    => {
+                map { 
+                    my $old_tag = 'EntryAuthor' . $_;
+                    my $new_tag = 'EntryCreator' . $_;
+                    $new_tag => sub { workflow_tag_runner ( $old_tag , @_ ) }
+                } ( '', 'DisplayName', 'Email', 'Link', 'Nickname', 'URL', 'Username'),                
+            }
+        },
+        
     };
     $plugin->registry ($reg);
 }
@@ -528,10 +530,17 @@ sub workflow_tag_runner {
 
     my $a = _get_entry_creator ($ctx, $args)
         or return $ctx->_no_entry_error ($ctx->stash ('tag'));
-        
-    local $ctx->{__stash}{entry}{__author} = $a;
-    my ($hdlr) = $ctx->handler_for ($tag);
-    $hdlr->($ctx, $args);
+    my $e = $ctx->stash ('entry');
+
+    # Nix the cached values and stuff our own in there
+    $e->clear_cache;
+    $e->cache_property ('author', sub { $a; });
+
+    my $out = $ctx->tag(lc $tag, $ctx, $args);
+    
+    # Now nix our special value
+    $e->clear_cache;
+    $out;
 }
 
 sub post_transfer {
