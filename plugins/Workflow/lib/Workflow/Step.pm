@@ -56,7 +56,7 @@ sub members {
     
     # Just in case, filter out dupes
     my %seen = ();
-    @authors = grep { $seen{$_->id}++ } @authors;
+    @authors = grep { !$seen{$_->id}++ } @authors;
     @authors;
 }
 
