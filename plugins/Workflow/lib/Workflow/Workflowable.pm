@@ -114,7 +114,8 @@ sub workflow_update {
     # No need to keep going unless it's something *other* than 0
     return 0 unless ($direction);
 
-    if ($direction eq 'transfer_to') {
+    # explicit transfer
+    if ($direction == -2) {
         $obj->workflow_transfer ($note, $transfer) or return $obj->error ("Error transferring: " . $obj->errstr);
         return 1;
     }

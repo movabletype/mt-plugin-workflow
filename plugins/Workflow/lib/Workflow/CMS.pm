@@ -291,14 +291,14 @@ sub edit_entry_param {
             function updateNote() {
                 var sel = getByID('workflow_status');
                 var val = sel.options[sel.selectedIndex].value;
-                if (val != 0) {
+                if (val < 0) {
                     TC.removeClassName (getByID('workflow_change_note-field'), 'hidden');                        
                 }
                 else {
                     TC.addClassName (getByID('workflow_change_note-field'), 'hidden');
                 }
                 
-                if (val == 'transfer_to') {
+                if (val == -4) {
                     TC.removeClassName (getByID('workflow_author_transfer-field'), 'hidden');
                 }
                 else {
@@ -308,18 +308,18 @@ sub edit_entry_param {
         </script>
     
     <select id="workflow_status" name="workflow_status" class="full-width" onchange="updateNote();">
-        <mt:if name="workflow_has_previous_step"><option value="-1">Return to previous step: <mt:var name="workflow_previous_step_name"></option></mt:if>
+        <mt:if name="workflow_has_previous_step"><option value="-3">Return to previous step: <mt:var name="workflow_previous_step_name"></option></mt:if>
         <mt:if name="workflow_has_step">
-            <option value="0" selected="selected">Remain in: <mt:var name="workflow_current_step_name"></option>
+            <option value="-2" selected="selected">Remain in: <mt:var name="workflow_current_step_name"></option>
             <mt:else><option value="1"<mt:if name="status_draft"> selected="selected"</mt:if>>Unpublished</option></mt:else>
         </mt:if>
         <mt:if name="workflow_next_step_published">
             <option value="2"<mt:if name="status_publish"> selected="selected"</mt:if>>Published</option>
             <option value="4"<mt:if name="status_future"> selected="selected"</mt:if>>Scheduled</option>
             <mt:else>
-            <option value="1">Ready for next step: <mt:var name="workflow_next_step_name"></option>
+            <option value="-1">Ready for next step: <mt:var name="workflow_next_step_name"></option>
         </mt:if>
-        <option value="transfer_to">Transfer...</option>
+        <option value="-4">Transfer...</option>
     </select>
     };
     $workflow_status_field->innerHTML ($innerHTML);

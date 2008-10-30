@@ -194,7 +194,7 @@ sub pre_save_entry {
     my ($cb, $app, $obj) = @_;
     
     my $status = $app->param ('workflow_status');
-    if ($status ne 'transfer_to' && ($status > 1 || ($status == 1 && ($obj->status == MT::Entry::RELEASE() || $obj->status == MT::Entry::FUTURE())))) {
+    if ($status > 0) {
         $obj->status ($status);
     }
     1;
@@ -204,7 +204,12 @@ sub pre_save_entry {
 sub post_save_entry {
     my ($cb, $app, $obj, $orig) = @_;
     
-    if (defined (my $res = $obj->workflow_update ($orig, $app->param ('workflow_status'), $app->param ('workflow_change_note'), $app->param ('workflow_author_transfer')))) {
+    my $workflow_status = $app->param ('workflow_status');
+    my $direction = 0;
+    if ($workflow_status < 0) {
+        $direction = $workflow_status + 2;
+    }
+    if (defined (my $res = $obj->workflow_update ($orig, $direction, $app->param ('workflow_change_note'), $app->param ('workflow_author_transfer')))) {
         if ($res) {
             require MT::Request;
             my $r = MT::Request->instance;
