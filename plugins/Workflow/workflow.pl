@@ -18,7 +18,7 @@ use Workflow::Step;
 use Workflow::StepAssociation;
 
 use vars qw($VERSION $plugin);
-$VERSION = '1.9.9';
+$VERSION = '1.9.10';
 $plugin = MT::Plugin::Workflow->new ({
         id          => 'Workflow',
         name		=> 'Workflow',
@@ -157,8 +157,13 @@ sub init_cms_app {
     my ($app) = @_;
     
     local $SIG{__WARN__} = sub {};
-    my $orig_handler = \&MT::App::CMS::_finish_rebuild_ping;
-    *MT::App::CMS::_finish_rebuild_ping = sub {
+    my $orig_handler;
+    eval { require MT::CMS::Entry; };
+    my $cms_entry = $@ ? 0 : 1;
+    $orig_handler = $cms_entry
+    	? \&MT::CMS::Entry::_finish_rebuild_ping
+    	: \&MT::App::CMS::_finish_rebuild_ping;
+    my $sub = sub {
         my $a = shift;
         my ($entry) = @_;
         require MT::Request;
@@ -177,6 +182,11 @@ sub init_cms_app {
         else {
             $orig_handler->($app, @_);
         }
+    };
+    if ($cms_entry) {
+    	*MT::CMS::Entry::_finish_rebuild_ping = $sub;
+    } else {
+    	*MT::App::CMS::_finish_rebuild_ping = $sub;
     }
 }
 
