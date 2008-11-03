@@ -211,6 +211,8 @@ sub save_workflow_order {
 sub edit_entry_param {
     my ($cb, $app, $param, $tmpl) = @_;
 
+    return unless ($param->{object_type} eq 'entry');
+
     my $step;
     my $e;
     if (!$param->{id}) {
