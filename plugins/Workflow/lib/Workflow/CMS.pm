@@ -3,6 +3,7 @@ package Workflow::CMS;
 use Data::Dumper;
 use Workflow::StepAssociation;
 use MT::Util qw( ts2epoch format_ts epoch2ts relative_date );
+use Workflow::Util qw( use_blog_id );
 
 sub plugin {
     return MT->component ('Workflow');
@@ -20,7 +21,7 @@ sub edit_step {
 
 sub list_workflow_step {
     my $app = shift;
-    my $blog_id = $app->blog->id;
+    my $blog_id = $app->blog ? $app->blog->id : 0;
     $app->listing ({
         type    => 'workflow_step',
         terms   => {
@@ -29,6 +30,9 @@ sub list_workflow_step {
         args    => {
             sort        => 'order',
             direction   => 'ascend'
+        },
+        params => {
+        	has_defaults => MT->model('workflow_step')->count({ blog_id => 0 }),
         },
     });
 }
@@ -87,14 +91,14 @@ sub view_workflow_step {
     my %author_assoc_hash = ();
     if ($id) {
         require Workflow::StepAssociation;
-        my @assocs = Workflow::StepAssociation->load ({ blog_id => $app->blog->id, step_id => $id });
+        my @assocs = Workflow::StepAssociation->load ({ blog_id => $app->blog ? $app->blog->id : 0, step_id => $id });
         %role_assoc_hash = map { $_->assoc_id => 1 } grep { $_->type eq Workflow::StepAssociation::ROLE } @assocs;
         %author_assoc_hash = map { $_->assoc_id => 1 } grep { $_->type eq Workflow::StepAssociation::AUTHOR } @assocs;
     }
     else {
         # No id, so we're creating it at the end
         # so grab the last step and add one to the order col
-        my $last_step = Workflow::Step->load ({ blog_id => $app->blog->id }, { sort => 'order', direction => 'descend', limit => 1 });
+        my $last_step = Workflow::Step->load ({ blog_id => $app->blog ? $app->blog->id : 0 }, { sort => 'order', direction => 'descend', limit => 1 });
         my $last_order = $last_step ? $last_step->order : 0;
         
         $param{order} = $last_order + 1;
@@ -102,20 +106,23 @@ sub view_workflow_step {
     
     $param{roles} = [ map { { role_name => $_-> name, role_id => $_->id, role_checked => $role_assoc_hash{$_->id} } } @roles ];
     
-    require MT::Author;
-    require MT::Permission;
-    # should probably be a bit more specific about the permissions here
-    my @authors = MT::Author->load ({ type => MT::Author::AUTHOR },
-        {
-            sort => 'name',
-            direction => 'ascend',
-            join    => MT::Permission->join_on ('author_id', {
-                blog_id => $app->blog->id,
-            }),
-        }
-    );
-    
-    $param{authors} = [ map { { author_name => $_->name, author_id => $_->id, author_checked => $author_assoc_hash{$_->id} } } @authors ];
+    # don't allow author-based step associations for system-wide steps 
+    if ($app->blog) {
+		require MT::Author;
+		require MT::Permission;
+		# should probably be a bit more specific about the permissions here
+		my @authors = MT::Author->load ({ type => MT::Author::AUTHOR },
+			{
+				sort => 'name',
+				direction => 'ascend',
+				join    => MT::Permission->join_on ('author_id', {
+					blog_id => $app->blog->id,
+				}),
+			}
+		);
+		
+		$param{authors} = [ map { { author_name => $_->name, author_id => $_->id, author_checked => $author_assoc_hash{$_->id} } } @authors ];
+	}
     
     $app->build_page ($tmpl, \%param);
 }
@@ -215,9 +222,10 @@ sub edit_entry_param {
 
     my $step;
     my $e;
+    my $use_blog_id = use_blog_id($param->{blog_id});
     if (!$param->{id}) {
         require Workflow::Step;
-        $step = Workflow::Step->first_step ($param->{blog_id});
+        $step = Workflow::Step->first_step ($use_blog_id);
     }
     else {
         require MT::Entry;
@@ -357,6 +365,14 @@ sub list_entry_source {
 sub list_entry_param {
     my ($cb, $app, $param, $tmpl) = @_;
     $param->{workflow_transferred} = $app->param ('workflow_transferred');
+}
+
+sub pre_workflow_step_save {
+	my ($cb, $app, $obj) = @_;
+	if (!$obj->blog_id) {
+		$obj->blog_id(0);
+	}
+	$app->log(Dumper($obj));
 }
 
 sub post_workflow_step_save {

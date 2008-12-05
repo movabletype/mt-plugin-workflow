@@ -1,5 +1,7 @@
 package Workflow::Workflowable;
 
+use Workflow::Util qw( use_blog_id );
+
 use Data::Dumper;
 
 sub get_audit_log {
@@ -32,7 +34,7 @@ sub workflow_status {
     $status = Workflow::Status->new;
     
     # Set the step bits
-    my $first_step = Workflow::Step->first_step ($obj->blog_id);
+    my $first_step = Workflow::Step->first_step (use_blog_id($obj->blog_id));
     $status->step_id ($first_step->id) if ($first_step);
     
     # Set the db pointing bits
@@ -130,7 +132,7 @@ sub workflow_update {
                 $new_step = $current_step->next;
                 if ($new_step) {
                     # get the list of possible owners from the next step
-                    my @editors = $new_step->members;
+                    my @editors = $new_step->members($obj);
                     
                     # sort them somehow and grab the first one
                     # - callback?

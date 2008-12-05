@@ -44,7 +44,7 @@ $plugin = MT::Plugin::Workflow->new ({
             'Workflow::PostPublishAttempt'  => \&post_publish_attempt,
         },
         
-        schema_version  => '0.61',
+        schema_version  => '0.613',
 });
 MT->add_plugin ($plugin);
 
@@ -69,6 +69,7 @@ sub init_registry {
             'MT::App::CMS::template_source.list_entry'  => '$Workflow::Workflow::CMS::list_entry_source',
             'MT::App::CMS::template_param.list_entry'   => '$Workflow::Workflow::CMS::list_entry_param',
             
+            'cms_pre_save.workflow_step'               => '$Workflow::Workflow::CMS::pre_workflow_step_save',
             'cms_post_save.workflow_step'               => '$Workflow::Workflow::CMS::post_workflow_step_save',
             
             'Workflow::CanPublish'          => \&can_publish,
@@ -104,7 +105,7 @@ sub init_registry {
                         args    => { _type => 'workflow_step' },
                         order   => 10000,
                         permission  => 'edit_all_posts',
-                        view    => 'blog',
+                        system_permission => 'administer',
                     }
                 }
             }
@@ -119,13 +120,28 @@ sub init_registry {
         },
         tags   => {
             function    => {
-                map { 
+                (map { 
                     my $old_tag = 'EntryAuthor' . $_;
                     my $new_tag = 'EntryCreator' . $_;
                     $new_tag => sub { workflow_tag_runner ( $old_tag , @_ ) }
-                } ( '', 'DisplayName', 'Email', 'Link', 'Nickname', 'URL', 'Username'),                
+                } ( '', 'DisplayName', 'Email', 'Link', 'Nickname', 'URL', 'Username')),
+				StepID => '$Workflow::Workflow::Tags::hdlr_step_id',
+				StepName => '$Workflow::Workflow::Tags::hdlr_step_name',
+				StepDescription => '$Workflow::Workflow::Tags::hdlr_step_description',
+				StepOrder => '$Workflow::Workflow::Tags::hdlr_step_order',
+				StepNote => '$Workflow::Workflow::Tags::hdlr_step_note',
+				StepOldStatus => '$Workflow::Workflow::Tags::hdlr_step_old_status',
+				StepNewStatus => '$Workflow::Workflow::Tags::hdlr_step_new_status',
+            },
+            block    => {
+				BlogWorkflowSteps => '$Workflow::Workflow::Tags::hdlr_blog_workflow_steps',
+				EntryWorkflowSteps => '$Workflow::Workflow::Tags::hdlr_entry_workflow_steps',
+				StepTransferredFromAuthor => '$Workflow::Workflow::Tags::hdlr_step_transferred_from_author',
+				StepTransferredToAuthor => '$Workflow::Workflow::Tags::hdlr_step_transferred_to_author',
+				OldStep => '$Workflow::Workflow::Tags::hdlr_old_step',
+				'EntryIfStep?' => '$Workflow::Workflow::Tags::hdlr_entry_if_step',
             }
-        },
+      },
         
     };
     $plugin->registry ($reg);

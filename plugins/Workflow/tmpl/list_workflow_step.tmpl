@@ -28,7 +28,7 @@ function saveOrder(f) {
 
 </mt:setvarblock>
 <mt:setvarblock name="content_header">
-<p id="create-new-link"><a href="<$mt:var name="mt_url"$>?__mode=view&amp;_type=<mt:var name="object_type">&amp;blog_id=<$mt:var name="blog_id"$>" class="icon-left icon-create"><__trans phrase="Create [_1] at the end" params="<mt:var name="object_label" lower_case="1">"></a></p>
+<p id="create-new-link"><a href="<$mt:var name="mt_url"$>?__mode=view&amp;_type=<mt:var name="object_type"><mt:if name="blog_id" ne="-1">&amp;blog_id=<$mt:var name="blog_id"$></mt:if>" class="icon-left icon-create"><__trans phrase="Create [_1] at the end" params="<mt:var name="object_label" lower_case="1">"></a></p>
 </mt:setvarblock>
 <mt:include name="include/header.tmpl">
 <mtapp:listing>
@@ -50,7 +50,7 @@ function saveOrder(f) {
 <a href="javascript:void(0);" onclick="moveRow('down', '<mt:var name="id">')"><img src="<mt:var name="static_uri">plugins/Workflow/nav-arrow-down.gif" border="0" /></a>
 </td>
 
-        <td><a href="<$mt:var name="script_url"$>?__mode=view&amp;_type=<mt:var name="object_type">&amp;id=<$mt:var name="id"$>&amp;blog_id=<$mt:var name="blog_id"$>"><mt:var name="name"></a></td>
+        <td><a href="<$mt:var name="script_url"$>?__mode=view&amp;_type=<mt:var name="object_type">&amp;id=<$mt:var name="id"$><mt:if name="blog_id" ne="-1">blog_id=<$mt:var name="blog_id"$></mt:if>"><mt:var name="name"></a></td>
     </tr>
     <mt:if __last__>
         </tbody>

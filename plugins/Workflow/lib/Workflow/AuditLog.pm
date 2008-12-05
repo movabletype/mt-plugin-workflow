@@ -23,6 +23,9 @@ __PACKAGE__->install_properties ({
     indexes => {
         'id'    => 1,
         'object_id'  => 1,
+        'object_datasource'  => 1,
+        'old_step_id'  => 1,
+        'new_step_id'  => 1,
     },
 
     defaults => {
@@ -42,7 +45,6 @@ sub class_label {
 sub class_label_plural {
     MT->translate ('Audit Logs');
 }
-
 
 
 1;

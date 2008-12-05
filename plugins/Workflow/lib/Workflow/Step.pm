@@ -5,6 +5,8 @@ use warnings;
 
 use base qw( MT::Object );
 
+use Workflow::Util qw( use_blog_id );
+
 __PACKAGE__->install_properties ({
     column_defs => {
         'id'        => 'integer not null primary key auto_increment',
@@ -45,13 +47,14 @@ sub previous {
 }
 
 sub members {
-    my $obj = shift;
+    my $step = shift;
+    my ($obj) = @_;
     require Workflow::StepAssociation;
     
-    my @assocs = Workflow::StepAssociation->load ({ blog_id => $obj->blog_id, step_id => $obj->id });
+    my @assocs = Workflow::StepAssociation->load ({ blog_id => $step->blog_id, step_id => $step->id });
     my @authors;
     foreach my $assoc (@assocs) {
-        push @authors, $assoc->authors;
+        push @authors, $assoc->authors($obj);
     }
     
     # Just in case, filter out dupes

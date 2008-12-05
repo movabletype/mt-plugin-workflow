@@ -8,7 +8,7 @@ use base qw( MT::Object );
 __PACKAGE__->install_properties ({
     column_defs => {
         'id'        => 'integer not null primary key auto_increment',
-        'blog_id'   => 'integer not null',
+        'blog_id'   => 'integer',
         'step_id'   => 'integer not null',
         'type'      => 'string(10)', # author, group, role, etc
         'assoc_id'  => 'integer not null',
@@ -44,20 +44,21 @@ sub class_label_plural {
 }
 
 sub authors {
-    my $obj = shift;
+    my $sa = shift;
+    my ($obj) = @_;
     
     require MT::Author;
-    if (AUTHOR eq $obj->type) {
-        return (MT::Author->load ($obj->assoc_id));
+    if (AUTHOR eq $sa->type) {
+        return (MT::Author->load ($sa->assoc_id));
     }
-    elsif (GROUP eq $obj->type) {
+    elsif (GROUP eq $sa->type) {
         # ???
     }
-    elsif (ROLE eq $obj->type) {
+    elsif (ROLE eq $sa->type) {
         require MT::Association;
         my @authors = MT::Author->load ({}, {
             join    => MT::Association->join_on ('author_id', {
-                role_id => $obj->assoc_id,
+                role_id => $sa->assoc_id,
                 blog_id => $obj->blog_id,
             }),
         });
