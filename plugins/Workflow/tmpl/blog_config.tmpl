@@ -1,13 +1,35 @@
 <mtapp:setting
     id="email_notifications"
-    label="<__trans phrase="Email Notifications">:">
+    label="<__trans phrase="Email Notifications">:"
+	hint="Send email notifications for entry transfer and publish attempts."
+	show_hint="1"
+>
     <input type="checkbox" class="cb" value="1" name="email_notifications" id="email_notifications" <mt:if name="email_notificaions">checked="checked"</mt:if> />
-    <p class="hint">Send email notifications for entry transfer and publish attempts.</p>
 </mtapp:setting>
 
 <mtapp:setting
     id="automatic_transfer"
-    label="<__trans phrase="Automatic Editor Transfer">:">
+    label="<__trans phrase="Automatic Editor Transfer">:"
+	hint="Automatically transfer entries to first available editor upon publish attempt, where 'first available' is defined as the editor with the most recent published entry."
+	show_hint="1"
+>
     <input type="checkbox" class="cb" value="1" name="automatic_transfer" id="automatic_transfer" <mt:if name="automatic_transfer">checked="checked"</mt:if>/>
-    <p class="hint">Automatically transfer entries to first available editor upon publish attempt, where "first available" is defined as the editor with the most recent published entry.</p>
+</mtapp:setting>
+
+<mtapp:setting
+    id="automatic_transfer"
+    label="<__trans phrase="Use System-Wide Steps">:"
+	hint="Use the workflow steps defined at the system level if no steps are defined for this blog."
+	show_hint="1"
+>
+    <input type="checkbox" class="cb" value="1" name="use_system" id="use_system" <mt:if name="use_system">checked="checked"</mt:if>/>
+</mtapp:setting>
+
+<mtapp:setting
+    id="listing_steps"
+    label="<__trans phrase="Show Steps on Entry Listing">:"
+	hint="Show the current workflow step for each entry in the Status column of the entry listing."
+	show_hint="1"
+>
+    <input type="checkbox" class="cb" value="1" name="listing_steps" id="listing_steps" <mt:if name="listing_steps">checked="checked"</mt:if>/>
 </mtapp:setting>

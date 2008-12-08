@@ -36,6 +36,12 @@ $plugin = MT::Plugin::Workflow->new ({
             # Automatically transfer an entry that was publish attempted to the first available editor
             # Where "first available" is defined as the editor with the most recent published entry
             [ 'automatic_transfer', { Default => 0, Scope => 'blog'} ],
+
+			# whether to use the system-wide workflow steps for this blog
+            [ 'use_system', { Default => 0, Scope => 'blog'} ],
+
+			# transform entry listing to show current step in status column?
+            [ 'listing_steps', { Default => 1, Scope => 'blog'} ],
         ]),
             
         callbacks   => {
@@ -67,6 +73,7 @@ sub init_registry {
             'cms_post_save.entry'                       => \&post_save_entry,
             
             'MT::App::CMS::template_source.list_entry'  => '$Workflow::Workflow::CMS::list_entry_source',
+            'MT::App::CMS::template_source.entry_table'  => '$Workflow::Workflow::CMS::entry_table_source',
             'MT::App::CMS::template_param.list_entry'   => '$Workflow::Workflow::CMS::list_entry_param',
             
             'cms_pre_save.workflow_step'               => '$Workflow::Workflow::CMS::pre_workflow_step_save',
@@ -107,7 +114,10 @@ sub init_registry {
                         permission  => 'edit_all_posts',
                         system_permission => 'administer',
                     }
-                }
+                },
+                list_filters => {
+                	entry => '$Workflow::Workflow::CMS::list_filters',
+                },
             }
         },
         default_templates   => {
@@ -136,9 +146,10 @@ sub init_registry {
             block    => {
 				BlogWorkflowSteps => '$Workflow::Workflow::Tags::hdlr_blog_workflow_steps',
 				EntryWorkflowSteps => '$Workflow::Workflow::Tags::hdlr_entry_workflow_steps',
-				StepTransferredFromAuthor => '$Workflow::Workflow::Tags::hdlr_step_transferred_from_author',
-				StepTransferredToAuthor => '$Workflow::Workflow::Tags::hdlr_step_transferred_to_author',
 				OldStep => '$Workflow::Workflow::Tags::hdlr_old_step',
+				StepAuthor => '$Workflow::Workflow::Tags::hdlr_step_author',
+				StepOldAuthor => '$Workflow::Workflow::Tags::hdlr_step_old_author',
+				'StepIfTransferred?'  => '$Workflow::Workflow::Tags::hdlr_step_if_transferred',
 				'EntryIfStep?' => '$Workflow::Workflow::Tags::hdlr_entry_if_step',
             }
       },

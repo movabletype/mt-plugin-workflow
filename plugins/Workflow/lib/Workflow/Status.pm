@@ -34,10 +34,6 @@ sub class_label {
     MT->translate ('Workflow Step');
 }
 
-sub class_label {
-    MT->translate ('Workflow Steps');
-}
-
 sub step {
     my $obj = shift;
     return undef if (!$obj->step_id);

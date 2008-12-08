@@ -211,6 +211,39 @@ sub save_workflow_order {
 	return list_workflow_step($app);
 }
 
+
+sub list_filters {
+	my ($scope) = @_;
+	my %filters;
+	for my $step (MT->model('workflow_step')->load) {
+		$filters{'workflow_step_' . $step->id} = {
+			label => $step->name,
+			handler => '$Workflow::Workflow::CMS::list_filter_handler',
+			condition => sub {
+				my $blog_id = MT->instance->param('blog_id');
+				return 1 unless $blog_id;
+				return ($step->blog_id == use_blog_id($blog_id));
+			},
+		}
+	}
+	return \%filters;
+}
+
+sub list_filter_handler {
+	my ($terms, $args) = @_;
+	my $filter_key = MT->instance->param('filter_key');
+	$filter_key =~ /workflow_step_(\d+)$/;
+	my $step_id = $1;
+	$args->{'join'} = MT->model('workflow_status')->join_on(
+		undef,
+		{
+			object_id => \'=entry_id', #'
+			object_datasource => 'entry',
+			step_id => $step_id,
+		},
+	);
+}
+
 ###
 ### Callbacks
 ###
@@ -362,9 +395,39 @@ sub list_entry_source {
     $$tmpl =~ s{\Q$old\E}{$new$old}ms;
 }
 
+sub entry_table_source {
+	my ($cb, $app, $tmpl) = @_;
+	my $blog_id = $app->param('blog_id');
+	return unless plugin()->get_config_value('listing_steps', "blog:$blog_id");
+	my $old = q{<td class="status si<mt:if name="status_draft">};
+	$$tmpl =~ s{$old}{<td nowrap="nowrap" style="text-align:left;" class="status si<mt:if name="status_step"> status-draft</mt:if><mt:if name="status_draft">};
+	$$tmpl =~ s{(phrase="([^"]+)">" width="9" height="9" />)</a>}{$1&nbsp;&nbsp;$2</a>}g;
+	$$tmpl =~ s/<th class="status<mt:unless name="is_power_edit">/<th style="text-align:left;" class="status<mt:unless name="is_power_edit">/;
+	$$tmpl =~ s{(phrase="Status">" width="9" height="9" />)}{$1&nbsp;&nbsp;Status};
+	my $new = q{
+            <mt:if name="status_step">
+                    <a href="<$mt:var name="script_url"$>?__mode=list_<mt:var name="object_type"><mt:if name="blog_id">&amp;blog_id=<$mt:var name="blog_id"$></mt:if>&amp;filter_key=workflow_step_<mt:var name="step_id">"><img src="<$mt:var name="static_uri"$>images/spacer.gif" alt="<__trans phrase="Unpublished (Draft)">" width="9" height="9" />&nbsp;&nbsp;<mt:var name="status_step"></a>
+            </mt:if>
+	};
+	$old = q{<mt:if name="status_draft">
+                    <a href};
+	$$tmpl =~ s/$old/$new$old/;
+	
+}
+
 sub list_entry_param {
     my ($cb, $app, $param, $tmpl) = @_;
     $param->{workflow_transferred} = $app->param ('workflow_transferred');
+	return unless plugin()->get_config_value('listing_steps', "blog:$blog_id");
+	for my $row (@{$param->{'entry_table'}[0]{'object_loop'}}) {
+		my $e = MT->model('entry')->load($row->{'id'});
+		my $step = $e->workflow_step;
+		if ($step) {
+			$row->{'status_step'} = $step->name;
+			$row->{'step_id'} = $step->id;
+			$row->{'status_draft'} = 0;
+		}
+	}
 }
 
 sub pre_workflow_step_save {

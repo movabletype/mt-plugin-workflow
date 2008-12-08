@@ -56,6 +56,11 @@ sub workflow_status {
     $status->previous_owner_id (0);
     
     $status->save or return $obj->error ("Error creating status: " . $status->errstr);
+    
+    my $al = _make_audit_log($obj);
+    $al->old_step_id(0);
+    $al->new_step_id($status->step_id);
+    $al->save || die $al->errstr;
     return $status;
 }
 
@@ -88,30 +93,11 @@ sub workflow_update {
     my $obj = shift;
     my ($orig, $direction, $note, $transfer) = @_;
     
-    my $class = ref ($obj);
     
     my $status = $obj->workflow_status or die $obj->errstr;
-    
-    require Workflow::AuditLog;
-    my $al = Workflow::AuditLog->new;
-    $al->object_id ($obj->id);
-    $al->object_datasource ($obj->datasource);
-    if (my $status_field = $class->{__workflow}->{status_field}) {
-        $al->new_status ($obj->$status_field);
-        $al->old_status ($orig ? $orig->$status_field : 0);
-    }
-    if (!$orig) {
-        # New object!
-        $al->edited (0);
-    }
-    else {
-        # Check the various text fields for changes
-        my $is_edited = 0;
-        foreach my $field (@{$class->{__workflow}->{edit_fields}}) {
-            $is_edited ||= ($obj->$field ne $orig->$field);
-        }
-        $al->edited ($is_edited);
-    }
+
+	my $al = _make_audit_log($obj, $orig);
+	
     
     # No need to keep going unless it's something *other* than 0
     return 0 unless ($direction);
@@ -183,7 +169,7 @@ sub workflow_update {
     $al->transferred_from ($prev_owner->id) if ($prev_owner);
     $al->transferred_to ($owner->id) if ($owner);
     $al->old_step_id ($current_step ? $current_step->id : 0);
-    $al->new_step_id ($new_step_id ? $new_step->id : $current_step ? $current_step->id : 0);
+    $al->new_step_id ($new_step ? $new_step->id : $current_step ? $current_step->id : 0);
     $status->step_id ($new_step->id) if ($new_step);
     $al->note ($note);
     $al->save or die $al->errstr;
@@ -288,6 +274,34 @@ sub workflow_previous_owner {
     return 0 if (!$status || !$status->previous_owner_id);
     
     return MT::Author->load ($status->previous_owner_id);
+}
+
+sub _make_audit_log {
+# create and initially populate an MT::AuditLog entry (don't save yet)
+	my ($obj, $orig) = @_;
+    my $class = ref ($obj);
+    
+    require Workflow::AuditLog;
+    my $al = Workflow::AuditLog->new;
+    $al->object_id ($obj->id);
+    $al->object_datasource ($obj->datasource);
+    if (my $status_field = $class->{__workflow}->{status_field}) {
+        $al->new_status ($obj->$status_field);
+        $al->old_status ($orig ? $orig->$status_field : 0);
+    }
+    if (!$orig) {
+        # New object!
+        $al->edited (0);
+    }
+    else {
+        # Check the various text fields for changes
+        my $is_edited = 0;
+        foreach my $field (@{$class->{__workflow}->{edit_fields}}) {
+            $is_edited ||= ($obj->$field ne $orig->$field);
+        }
+        $al->edited ($is_edited);
+    }
+    return $al;
 }
 
 sub _clear_transfer_score_cache {
