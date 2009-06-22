@@ -20,7 +20,7 @@ __PACKAGE__->install_properties ({
         'object_id' => 1,
         'step_id'   => 1,
     },
-    
+
     defaults => {
         'step_id'   => 0,
     },
@@ -40,6 +40,5 @@ sub step {
     require Workflow::Step;
     return Workflow::Step->load ($obj->step_id);
 }
-
 
 1;
