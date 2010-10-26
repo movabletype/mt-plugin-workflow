@@ -1,4 +1,3 @@
-
 package MT::Plugin::Workflow;
 
 use strict;

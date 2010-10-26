@@ -43,6 +43,4 @@ sub class_label_plural {
     MT->translate ('Audit Logs');
 }
 
-
-
 1;

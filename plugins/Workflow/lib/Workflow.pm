@@ -1,11 +1,11 @@
-
 package Workflow;
+
+use strict;
 
 use MT::Plugin;
 @ISA = qw( MT::Plugin );
 
 use vars qw( %Setup_options );
-use strict;
 
 use File::Spec;
 
