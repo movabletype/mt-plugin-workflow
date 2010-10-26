@@ -29,16 +29,15 @@ use Workflow::Step;
 use Workflow::StepAssociation;
 
 use vars qw($VERSION $plugin);
-$VERSION = '1.9.11';
+$VERSION = '1.9.12';
 $plugin = MT::Plugin::Workflow->new ({
         id          => 'Workflow',
         name        => 'Workflow',
         version     => $VERSION,
         description => 'Workflow can limit publishing rights to editors, can limit specified authors to posting only drafts, and lets an author pass ownership of an entry to any other author or editor with appropriate permissions.  Authors are notified when ownership of an entry is transferred.',
-        plugin_link => 'http://www.apperceptive.com/plugins/workflow/',
-        author_name => 'Apperceptive, LLC',
-        author_link => 'http://www.apperceptive.com/',
-        doc_link    => 'README.html',
+        plugin_link => 'http://www.movabletype.org/',
+        author_name => 'Six Apart',
+        author_link => 'http://www.movabletype.org/',
         blog_config_template    => 'blog_config.tmpl',
         settings        => new MT::PluginSettings ([
             # Whether or not email notifications should be sent out for transfer and publish attempts
