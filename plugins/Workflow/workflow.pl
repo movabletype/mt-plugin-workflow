@@ -32,18 +32,18 @@ $plugin = MT::Plugin::Workflow->new ({
         settings        => new MT::PluginSettings ([
             # Whether or not email notifications should be sent out for transfer and publish attempts
             [ 'email_notification', { Default => 1, Scope => 'blog'} ],
-            
+
             # Automatically transfer an entry that was publish attempted to the first available editor
             # Where "first available" is defined as the editor with the most recent published entry
             [ 'automatic_transfer', { Default => 0, Scope => 'blog'} ],
         ]),
-            
+
         callbacks   => {
             'Workflow::CanTransfer'         => \&can_transfer,
             'Workflow::PostTransfer'        => \&post_transfer,
             'Workflow::PostPublishAttempt'  => \&post_publish_attempt,
         },
-        
+
         schema_version  => '0.61',
 });
 MT->add_plugin ($plugin);
@@ -65,19 +65,19 @@ sub init_registry {
             'MT::App::CMS::template_param.edit_entry'   => '$Workflow::Workflow::CMS::edit_entry_param',
             'cms_pre_save.entry'                        => \&pre_save_entry,
             'cms_post_save.entry'                       => \&post_save_entry,
-            
+
             'MT::App::CMS::template_source.list_entry'  => '$Workflow::Workflow::CMS::list_entry_source',
             'MT::App::CMS::template_param.list_entry'   => '$Workflow::Workflow::CMS::list_entry_param',
-            
+
             'cms_post_save.workflow_step'               => '$Workflow::Workflow::CMS::post_workflow_step_save',
-            
+
             'Workflow::CanPublish'          => \&can_publish,
             'Workflow::PostTransfer'        => \&post_transfer,
             'Workflow::PostTransfer.entry'  => \&post_transfer_entry,
         },
-        
+
         init_app    => \&app_init,
-        
+
         applications    => {
             cms         => {
                 methods => {
@@ -119,14 +119,14 @@ sub init_registry {
         },
         tags   => {
             function    => {
-                map { 
+                map {
                     my $old_tag = 'EntryAuthor' . $_;
                     my $new_tag = 'EntryCreator' . $_;
                     $new_tag => sub { workflow_tag_runner ( $old_tag , @_ ) }
-                } ( '', 'DisplayName', 'Email', 'Link', 'Nickname', 'URL', 'Username'),                
+                } ( '', 'DisplayName', 'Email', 'Link', 'Nickname', 'URL', 'Username'),
             }
         },
-        
+
     };
     $plugin->registry ($reg);
 }
@@ -134,7 +134,7 @@ sub init_registry {
 sub app_init {
     my $plugin = shift;
     my ($app) = @_;
-    
+
     $plugin->init_workflowable_objects;
     $plugin->init_cms_app ($app) if ($app->isa ('MT::App::CMS'));
 }
@@ -143,7 +143,7 @@ sub init_workflowable_objects {
     my $plugin = shift;
     require MT::Entry;
     push @MT::Entry::ISA, 'Workflow::Workflowable';
-    
+
     MT::Entry->workflow_init (
         TextFields  => [ qw( text text_more title excerpt ) ],
         OwnerField  => 'author_id',
@@ -155,7 +155,7 @@ sub init_workflowable_objects {
 sub init_cms_app {
     my $plugin = shift;
     my ($app) = @_;
-    
+
     local $SIG{__WARN__} = sub {};
     my $orig_handler;
     eval { require MT::CMS::Entry; };
@@ -192,7 +192,7 @@ sub init_cms_app {
 
 sub pre_save_entry {
     my ($cb, $app, $obj) = @_;
-    
+
     my $status = $app->param ('workflow_status');
     if ($status > 0) {
         $obj->status ($status);
@@ -203,7 +203,7 @@ sub pre_save_entry {
 
 sub post_save_entry {
     my ($cb, $app, $obj, $orig) = @_;
-    
+
     my $workflow_status = $app->param ('workflow_status');
     my $direction = 0;
     if ($workflow_status < 0) {
@@ -220,9 +220,9 @@ sub post_save_entry {
     else {
         return $cb->error ($obj->errstr);
     }
-    
+
     # my $step = $obj->workflow_step;
-    # 
+    #
     # # First check for status changes
     # # and log them if there is a change
     # require Workflow::AuditLog;
@@ -237,8 +237,8 @@ sub post_save_entry {
     # }
     # else {
     #     # It's not new, and somebody saved it
-    #     $al->old_status ($orig->status);        
-    # 
+    #     $al->old_status ($orig->status);
+    #
     #     # Check the various text fields for changes
     #     my $is_edited = 0;
     #     foreach my $field (qw( text text_more title excerpt )) {
@@ -247,11 +247,11 @@ sub post_save_entry {
     #     $al->edited ($is_edited);
     # }
     # $al->save;
-    # 
+    #
     # # No need to keep going unless it's something *other* than 1
     # my $workflow_status = $app->param ('workflow_status');
     # return unless ($workflow_status && $workflow_status > 1);
-    # 
+    #
     # if ($workflow_status == 2) {
     #     # move it along to the next user in the workflow
     #     $plugin->_automatic_transfer ($cb, $app, $app->user, $obj) or return $cb->error ($cb->errstr);
@@ -266,19 +266,19 @@ sub post_save_entry {
     # else {
     #     return;
     # }
-    # 
+    #
     # # There was a transfer, so add that to the log
     # $al->transferred_to ($obj->author_id);
     # $al->note ($app->param ('workflow_change_note'));
     # $al->save;
-    
+
     # if we got this far, an entry was transferred, so we should make a note of that
 }
 
 sub _get_previous_owner {
     my $plugin = shift;
     my ($entry) = @_;
-    
+
     if (!ref $entry) {
         require MT::Entry;
         $entry = MT::Entry->load ($entry);
@@ -292,15 +292,15 @@ sub _default_perms {
     my ($blog_id) = @_;
 
     require MT::Permission;
-    return { 
+    return {
         map {
             $_->author_id => 1
         }
-        grep { 
-            $_->can_post 
-                && $_->can_edit_all_posts 
-        } 
-        MT::Permission->load ({ blog_id => $blog_id }) 
+        grep {
+            $_->can_post
+                && $_->can_edit_all_posts
+        }
+        MT::Permission->load ({ blog_id => $blog_id })
     };
 }
 
@@ -329,10 +329,10 @@ sub can_publish {
 # The default transfer checker: make sure the new author can post to the entry's blog
 sub can_transfer {
     my ($eh, $app, $entry, $new_author, $user) = @_;
-    
+
     require MT::Permission;
     my $perm = MT::Permission->load ({ author_id => $new_author->id, blog_id => $entry->blog_id });
-    
+
     return $perm && $perm->can_post;
 }
 
@@ -356,9 +356,9 @@ sub entry_save {
 
 # sub post_transfer {
 #     my ($eh, $app, $e, $old_a, $auth) = @_;
-# 
+#
 #     return 1 if (!$plugin->get_config_value ('email_notification', 'blog:' . $e->blog_id));
-# 
+#
 #     require MT::Entry;
 #     my $a = $e->author;
 #     if ($a->email) {
@@ -367,20 +367,20 @@ sub entry_save {
 #         my $from_addr = $app->{cfg}->EmailAddressMain || $auth->email;
 #         my %head = ( To => $a->email,
 #                 From => $from_addr,
-#                 Subject => 
+#                 Subject =>
 #                 '[' . $e->blog->name . '] ' .
 #                 $app->translate ('Entry Transferred: [_1]', $e->title)
 #                 );
-# 
+#
 #         my $charset = $app->{cfg}->PublishCharset || 'iso-8859-1';
 #         $head{'Content-Type'} = qq(text/plain; charset="$charset");
 #         my $base = $app->base . $app->path . $app->{cfg}->AdminScript;
-# 
+#
 #         my $edit_url = $base . '?__mode=view&blog_id=' . $e->blog_id
 #             . '&_type=entry&id=' . $e->id;
-# 
+#
 #         my $can_publish = MT->run_callbacks ('Workflow::CanPublish', $app, $a, $e);
-# 
+#
 #         my %params = (
 #                 blog_name => $e->blog->name,
 #                 entry_id => $e->id,
@@ -388,13 +388,13 @@ sub entry_save {
 #                 edit_url => $edit_url,
 #                 can_publish => $can_publish,
 #                 );
-# 
+#
 #         my $body = $app->build_page ('transfer_notification.tmpl', \%params);
 #         require Text::Wrap;
 #         $Text::Wrap::columns = 72;
 #         $body = Text::Wrap::wrap ('', '', $body, "\n\n");
 #         $body .= "\n\nEdit this entry:\n<$edit_url>\n\n";
-#         MT::Mail->send (\%head, $body) or 
+#         MT::Mail->send (\%head, $body) or
 #             $app->log ("Error sending transfer notification email to ".$a->name);
 #     }
 # }
@@ -403,12 +403,12 @@ sub entry_save {
 sub _get_editors {
     my $plugin = shift;
     my ($app, $entry) = @_;
-    
+
     my $blog = $entry->blog;
-    
+
     require MT::Permission;
     my @perms = MT::Permission->load ({ blog_id => $blog->id });
-    
+
     require MT::Author;
     return ( grep { MT->run_callbacks ('Workflow::CanPublish', $app, $_, $entry) } map { MT::Author->load ($_->author_id) } @perms );
 }
@@ -419,18 +419,18 @@ sub _transfer_entry {
     my ($eh, $app, %params) = @_;
     my $entry = $params{Entry};
     my $new_author = $params{To};
-    
+
     # Grab the old author
     # and delete the cached version(s)
     my $old_author = $entry->author;
     delete $entry->{__author};          # For MT
     delete $entry->{__cache}{author};   # For MTE
-    
+
     # Set the updated author_id
     # and record the original entry creator if there wasn't one already
     $entry->author_id ($new_author->id);
     $entry->created_by ($old_author->id) if (!$entry->created_by);
-    
+
     # And save the entry
     $entry->save or return $eh->error ("Error saving transferred entry: " . $entry->errstr);
 }
@@ -438,31 +438,31 @@ sub _transfer_entry {
 sub transfer_entry {
     my $plugin = shift;
     my ($eh, $app, %params) = @_;
-    
+
     my $entry = $params{Entry};
     my $new_author = $params{To};
-    
+
     # If the current user can transfer this particular entry to this particular author
     if (MT->run_callbacks ('Workflow::CanTransfer', $app, $entry, $new_author, $app->user)) {
-        
+
         # Grab the current author
         my $old_author = $entry->author;
-        
+
         # Why separate CanTransfer from PreTransfer?  I'm honestly not sure
         # Probably because it will allow callback writers to assume that the transfer has been approved
         # by the time the PreTransfer callback is made.
         # That is not an assumption that can be made in CanTransfer as a later callback might kick back a disapproval
         MT->run_callbacks ('Workflow::PreTransfer', $app, $entry, $new_author, $app->user);
-        
+
         # Perform the actual entry transfer
         $plugin->_transfer_entry ($eh, $app, %params) or return $eh->error ($eh->errstr);
-                
+
         $app->log ("Entry #".$entry->id." transferred from '".$old_author->name.
                 "' to '".$new_author->name."' by '".$app->{author}->name."'");
-        
+
         # Run the PostTransfer callbacks
         MT->run_callbacks ('Workflow::PostTransfer', $app, $entry, $new_author, $app->user);
-        
+
         # Entry was successfully transfereed, so return a true value
         return 1;
     }
@@ -475,16 +475,16 @@ sub transfer_entry {
 sub _automatic_transfer {
     my $plugin = shift;
     my ($eh, $app, $author, $entry) = @_;
-    
+
     my @editors = $plugin->_get_editors ($app, $entry);
-    
+
     # Only do the fancy bits if there are more than one available editor
     if (scalar @editors > 1) {
         require MT::Entry;
 
         # Build up a hash of author_id => timestamp of latest entry
         # so that we can sort on it in regular order (i.e. lower numbers, like 0, go first)
-        my %latest_editor_entries = 
+        my %latest_editor_entries =
             map { $_->author_id => $_->modified_on }
             map { MT::Entry->load ({ author_id => $_->id, status => MT::Entry::RELEASE }, { sort => 'modified_on', direction => 'descend', limit => 1 }) } @editors;
 
@@ -492,41 +492,41 @@ sub _automatic_transfer {
         # Editors with no published entries will rise to the front of the list as their latest entry dates will be 0/undef
         @editors = sort { $latest_editor_entries{$a->id} <=> $latest_editor_entries{$b->id} } @editors;
     }
-    
+
     $plugin->transfer_entry ($eh, $app, Entry => $entry, To => $editors[0]) or return $eh->error ($eh->errstr);
 }
 
 sub post_publish_attempt {
     my ($eh, $app, $author, $entry) = @_;
-    
+
     # First check for automatic transfer
     return $plugin->_automatic_transfer ($eh, $app, $author, $entry) if ($plugin->get_config_value ('automatic_transfer', 'blog:' . $entry->blog_id));
-    
+
     # Skip this if email notification is turned off
     return 1 if (!$plugin->get_config_value ('email_notification', 'blog:' . $entry->blog_id));
-    
+
     # First, get a list of all the Editors (i.e. can publish folks) and whatever email addresses they have handy
     # We cannot just do this with the plugin settings as other plugins may be hooking into the callback
     # so we'll have to load up every author associated with the blog and loop through to see who gets the email
     my @editors = $plugin->_get_editors ($app, $entry);
-    
+
     my %email_addresses = map { $_->email ? ($_->email => 1) : () } @editors; # Use a hash to eliminate any duplicates
     my @email_addrs = sort { $a cmp $b } keys %email_addresses;
-    
+
     require MT::Mail;
     my $from_addr = $app->{cfg}->EmailAddressMain || $author->email;
     my %head = ( To => \@email_addrs,
             From => $from_addr,
-            Subject => 
+            Subject =>
             '[' . $entry->blog->name . '] ' .
             $app->translate ('Entry Publish Attempted: [_1]', $entry->title)
             );
 
     my $charset = $app->{cfg}->PublishCharset || 'iso-8859-1';
     $head{'Content-Type'} = qq(text/plain; charset="$charset");
-    
+
     my $body = $app->build_page ('post_attempt_notification.tmpl', {});
-    
+
     require Text::Wrap;
     $Text::Wrap::columns = 72;
     $body = Text::Wrap::wrap ('', '', $body, "\n\n");
@@ -552,7 +552,7 @@ sub workflow_tag_runner {
     $e->cache_property ('author', sub { $a; });
 
     my $out = $ctx->tag(lc $tag, $ctx, $args);
-    
+
     # Now nix our special value
     $e->clear_cache;
     $out;
@@ -560,23 +560,23 @@ sub workflow_tag_runner {
 
 sub post_transfer {
     my ($cb, $obj, $from, $to) = @_;
-    
+
     require MT::App;
     my $app = MT::App->instance;
-    
+
     my $log_message = $obj->class_label . " #" . $obj->id . " transferred to " . $to->name;
-    
+
     $app->log ($log_message);
 }
 
 sub post_transfer_entry {
     my ($cb, $obj, $from, $to, $note) = @_;
-    
+
     # Nix any cached author, since we've just changed it
     delete $obj->{__cache}{author};
-    
+
     return 1 if (!$plugin->get_config_value ('email_notification', 'blog:' . $obj->blog_id));
-    
+
     # edge case, but it'd be silly to send this email
     return 1 if ($to->id == $from->id);
 
@@ -586,7 +586,7 @@ sub post_transfer_entry {
         require MT::Blog;
         my $blog = $obj->blog;
         require MT::Mail;
-        
+
         require MT::App;
         my $app = MT::App->instance;
         my $cfg = $app->{cfg};
@@ -595,7 +595,7 @@ sub post_transfer_entry {
             id => 'transfer_notification',
             To => $a->email,
             From => $from_addr,
-            Subject => 
+            Subject =>
             '[' . $blog->name . '] ' .
             $app->translate ('Entry Transferred: [_1]', $obj->title)
         );
@@ -635,9 +635,9 @@ sub post_transfer_entry {
         );
 
         my $body = $app->build_email ('transfer_notification.tmpl', \%params);
-        MT::Mail->send (\%head, $body) or 
+        MT::Mail->send (\%head, $body) or
         $app->log ("Error sending transfer notification email to ".$a->name);
-    }    
+    }
 }
 
 1;

@@ -35,25 +35,25 @@ sub class_label_plural {
 sub next {
     my $obj = shift;
     my $class = ref ($obj);
-    return $class->load ({ blog_id => $obj->blog_id }, { limit => 1, direction => 'ascend', sort => 'order', start_val => $obj->order });    
+    return $class->load ({ blog_id => $obj->blog_id }, { limit => 1, direction => 'ascend', sort => 'order', start_val => $obj->order });
 }
 
 sub previous {
     my $obj = shift;
     my $class = ref ($obj);
-    return $class->load ({ blog_id => $obj->blog_id }, { limit => 1, direction => 'descend', sort => 'order', start_val => $obj->order });    
+    return $class->load ({ blog_id => $obj->blog_id }, { limit => 1, direction => 'descend', sort => 'order', start_val => $obj->order });
 }
 
 sub members {
     my $obj = shift;
     require Workflow::StepAssociation;
-    
+
     my @assocs = Workflow::StepAssociation->load ({ blog_id => $obj->blog_id, step_id => $obj->id });
     my @authors;
     foreach my $assoc (@assocs) {
         push @authors, $assoc->authors;
     }
-    
+
     # Just in case, filter out dupes
     my %seen = ();
     @authors = grep { !$seen{$_->id}++ } @authors;

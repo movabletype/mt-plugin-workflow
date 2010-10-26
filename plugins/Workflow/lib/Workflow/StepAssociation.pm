@@ -45,7 +45,7 @@ sub class_label_plural {
 
 sub authors {
     my $obj = shift;
-    
+
     require MT::Author;
     if (AUTHOR eq $obj->type) {
         return (MT::Author->load ($obj->assoc_id));

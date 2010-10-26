@@ -17,7 +17,7 @@ sub add_setup_option {
   my ($key, $cfg) = @_;
 
   $cfg->{label} ||= $key;
-  return $wkflw->error ("No executable code") 
+  return $wkflw->error ("No executable code")
     unless $cfg->{can_publish} && $cfg->{can_grant};
   return $wkflw->error ("Setup option already exists in the system")
     if exists $Setup_options{$key};

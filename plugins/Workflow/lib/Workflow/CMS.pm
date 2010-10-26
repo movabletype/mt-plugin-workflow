@@ -10,7 +10,7 @@ sub plugin {
 
 sub edit_workflow {
     my $app = shift;
-    
+
     $app->load_tmpl ('workflow_edit.tmpl', {});
 }
 
@@ -36,53 +36,53 @@ sub list_workflow_step {
 sub view_workflow_step {
     my $app = shift;
     my $q   = $app->param;
-    
+
     my $tmpl = plugin()->load_tmpl ('edit_workflow_step.tmpl');
     my $class = $app->model ('workflow_step');
     my %param = ();
-    
+
     # General setup stuff here
-    # (this should really be a genericly available thing in MT, 
+    # (this should really be a genericly available thing in MT,
     # but it can't find the template unless we're in the plugin)
-    
+
     $param{object_type} = 'workflow_step';
     my $id = $q->param ('id');
     my $obj;
     if ($id) {
-        $obj = $class->load ($id);        
+        $obj = $class->load ($id);
     }
     else {
         $obj = $class->new;
     }
-    
+
     my $cols = $class->column_names;
     # Populate the param hash with the object's own values
     for my $col (@$cols) {
         $param{$col} =
           defined $q->param($col) ? $q->param($col) : $obj->$col();
     }
-    
+
     if ( $class->can('class_label') ) {
         $param{object_label} = $class->class_label;
     }
     if ( $class->can('class_label_plural') ) {
         $param{object_label_plural} = $class->class_label_plural;
     }
-    
+
     # Now for the custom bits
-    
+
     if (my $next = $obj->next) {
         $param{next_step_id} = $next->id;
     }
-    
+
     if (my $prev = $obj->previous) {
         $param{previous_step_id} = $prev->id;
     }
-    
+
     # Get the list of roles
     require MT::Role;
     my @roles = MT::Role->load ({}, { sort => 'name', direction => 'ascend' });
-    
+
     my %role_assoc_hash = ();
     my %author_assoc_hash = ();
     if ($id) {
@@ -96,12 +96,12 @@ sub view_workflow_step {
         # so grab the last step and add one to the order col
         my $last_step = Workflow::Step->load ({ blog_id => $app->blog->id }, { sort => 'order', direction => 'descend', limit => 1 });
         my $last_order = $last_step ? $last_step->order : 0;
-        
+
         $param{order} = $last_order + 1;
     }
-    
+
     $param{roles} = [ map { { role_name => $_-> name, role_id => $_->id, role_checked => $role_assoc_hash{$_->id} } } @roles ];
-    
+
     require MT::Author;
     require MT::Permission;
     # should probably be a bit more specific about the permissions here
@@ -114,9 +114,9 @@ sub view_workflow_step {
             }),
         }
     );
-    
+
     $param{authors} = [ map { { author_name => $_->name, author_id => $_->id, author_checked => $author_assoc_hash{$_->id} } } @authors ];
-    
+
     $app->build_page ($tmpl, \%param);
 }
 
@@ -126,9 +126,9 @@ sub view_audit_log {
     my $id = $app->param ('id');
     require MT::Entry;
     my $entry = MT::Entry->load ($id);
-    
+
     my $plugin = MT::Plugin::Workflow->instance;
-    
+
     my $tmpl = $plugin->load_tmpl ('audit_log.tmpl') or die $plugin->errstr;
     my $blog = $entry->blog;
     $app->listing ({
@@ -145,20 +145,20 @@ sub view_audit_log {
             $row->{username} = $a->name;
             if ($obj->transferred_to) {
                 my $ta = MT::Author->load ($obj->transferred_to);
-                $row->{transferred_to_username} = $ta->name;                
+                $row->{transferred_to_username} = $ta->name;
             }
             else {
                 $row->{transferred_to_username} = '';
             }
             my @actions = ();
-            
+
             if (!$obj->old_status) {
                 push @actions, 'Created';
             }
             elsif ($obj->edited) {
                 push @actions, 'Edited';
             }
-                        
+
             if ($obj->old_status != $obj->new_status) {
                 if ($obj->new_status == MT::Entry::HOLD()) {
                     push @actions, 'Unpublished';
@@ -170,13 +170,13 @@ sub view_audit_log {
                     push @actions, 'Scheduled';
                 }
             }
-            
+
             if ($obj->transferred_to) {
                 push @actions, 'Transferred';
             }
-            
+
             $row->{action_taken} = join (' and ', @actions);
-            
+
             if ( my $ts = $obj->created_on ) {
                     $row->{created_on_formatted} =
                       format_ts( '%b %e, %Y',
@@ -184,9 +184,9 @@ sub view_audit_log {
                 $row->{created_on_relative} = relative_date( $ts, time );
                 # $row->{log_detail} = $log->description;
             }
-            
+
         },
-         
+
     });
 }
 
@@ -239,10 +239,10 @@ sub edit_entry_param {
         {
             join    => MT::Permission->join_on ('author_id', [{ blog_id => $param->{blog_id}, author_id => { not => $owner } } => -and => [{ permissions => { like => '%publish_post%' } }, $published ? () : (-or => { permissions => { like => '%create_post%' } }) ] ], { unique => 1 }),
         });
-    
+
     my %names = map { $_->id => $_->nickname || $_->name } @authors;
     @authors = sort { $names{$a->id} cmp $names{$b->id} } @authors;
-    
+
     $param->{transfer_author_loop} = [ map { { transfer_author_id => $_->id, transfer_author_name => $names{$_->id} } } @authors ];
 
     my $workflow_author_transfer_field = $tmpl->createElement ('app:setting', { id => 'workflow_author_transfer', label => 'Transfer To', shown => 0 });
@@ -256,11 +256,11 @@ sub edit_entry_param {
     };
     $workflow_author_transfer_field->innerHTML ($innerHTML);
     $tmpl->insertAfter ($workflow_author_transfer_field, $status_field);
-    
+
     # We can't find a step, kick out
     # workflow_step takes care of grabbing the first step if the entry isn't in a step yet
     # return if (!$step);
-   
+
     if ($step) {
         $param->{workflow_has_step} = 1;
         $param->{workflow_has_previous_step} = $step->previous;
@@ -273,20 +273,20 @@ sub edit_entry_param {
         if (!$step->next) {
             my $perms = $app->permissions;
             if ($perms->can_publish_post) {
-                $param->{workflow_next_step_published} = 1;            
+                $param->{workflow_next_step_published} = 1;
             }
         }
         else {
             $param->{workflow_next_step_name} = $step->next->name;
-        }        
+        }
     }
     else {
         my $perms = $app->permissions;
         if ($perms->can_publish_post) {
-            $param->{workflow_next_step_published} = 1;            
+            $param->{workflow_next_step_published} = 1;
         }
     }
-        
+
     my $workflow_status_field = $tmpl->createElement ('app:setting', { id => 'workflow_status', label => 'Status' });
     $innerHTML = qq{
         <script type="text/javascript">
@@ -294,12 +294,12 @@ sub edit_entry_param {
                 var sel = getByID('workflow_status');
                 var val = sel.options[sel.selectedIndex].value;
                 if (val < 0) {
-                    TC.removeClassName (getByID('workflow_change_note-field'), 'hidden');                        
+                    TC.removeClassName (getByID('workflow_change_note-field'), 'hidden');
                 }
                 else {
                     TC.addClassName (getByID('workflow_change_note-field'), 'hidden');
                 }
-                
+
                 if (val == -4) {
                     TC.removeClassName (getByID('workflow_author_transfer-field'), 'hidden');
                 }
@@ -308,7 +308,7 @@ sub edit_entry_param {
                 }
             }
         </script>
-    
+
     <select id="workflow_status" name="workflow_status" class="full-width" onchange="updateNote();">
         <mt:if name="workflow_has_previous_step"><option value="-3">Return to previous step: <mt:var name="workflow_previous_step_name"></option></mt:if>
         <mt:if name="workflow_has_step">
@@ -326,14 +326,14 @@ sub edit_entry_param {
     };
     $workflow_status_field->innerHTML ($innerHTML);
     $tmpl->insertBefore ($workflow_status_field, $workflow_author_transfer_field);
-    
+
     my $workflow_change_field = $tmpl->createElement ('app:setting', { id => 'workflow_change_note', label => 'Change Note', shown => 0 });
     $innerHTML = qq{
         <textarea type="text" class="full-width short" rows="" cols="" id="workflow_change_note" name="workflow_change_note"></textarea>
     };
     $workflow_change_field->innerHTML ($innerHTML);
     $tmpl->insertAfter ($workflow_change_field, $workflow_status_field);
-    
+
 }
 
 sub list_entry_source {
@@ -350,7 +350,7 @@ sub list_entry_source {
             </mtapp:statusmsg>
         </mt:if>
     };
-    
+
     $$tmpl =~ s{\Q$old\E}{$new$old}ms;
 }
 
@@ -361,10 +361,10 @@ sub list_entry_param {
 
 sub post_workflow_step_save {
     my ($cb, $app, $obj, $orig) = @_;
-    
+
     my @role_ids = $app->param ('role_id');
     my @author_ids = $app->param ('author_id');
-    
+
     my %role_id_hash = map { $_ => 1 } @role_ids;
     my %author_id_hash = map { $_ => 1 } @author_ids;
 
@@ -388,7 +388,7 @@ sub post_workflow_step_save {
         my $role = MT::Role->load ($id) or next;
         Workflow::StepAssociation->set_by_key ({ blog_id => $obj->blog_id, step_id => $obj->id, type => Workflow::StepAssociation::ROLE, assoc_id => $id });
     }
-    
+
     my @author_assocs = Workflow::StepAssociation->load ({ blog_id => $obj->blog_id, step_id => $obj->id, type => Workflow::StepAssociation::AUTHOR });
     foreach my $author_assoc (@author_assocs) {
         if (!exists $author_id_hash{$author_assoc->assoc_id}) {
@@ -398,7 +398,7 @@ sub post_workflow_step_save {
             delete $author_id_hash{$author_assoc->assoc_id};
         }
     }
-    
+
     require MT::Author;
     foreach my $id (keys %author_id_hash) {
         my $author = MT::Author->load ($id) or next;
