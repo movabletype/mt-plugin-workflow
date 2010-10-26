@@ -1,0 +1,101 @@
+# Workflow, a plugin for Movable Type
+
+* Authors: Six Apart
+* Copyright: 2006-2010 Six Apart Ltd.
+* License: GPL
+* Site: <http://www.movabletype.org/>
+
+
+## Overview
+
+The workflow plugin is designed for users of Movable Type who require
+fine-grained control over which authors may publish content.
+
+
+## Requirements
+
+* MT 4.x
+
+
+## Features
+
+Workflow allows you to grant publishing permission to only the authors you
+choose (editors), while other authors (contributors) may only save entries as
+drafts. Once satisfied with their entries, contributors can transfer their
+entries to an editor who may then publish the entry to the blog.
+
+
+## Documentation
+
+Workflow steps are defined on a per-blog basis right now.  To see the list,
+open up the 'Manage' menu and select 'Workflow.'  New steps are always created
+at the end of the workflow.  Steps can be associated with roles or authors.
+When transferring an object to the next step, a new owner will be chosen by
+selecting the user (from the list of users associated with the next step) whose
+most recent workflow status change is oldest (i.e. one who hasn't made any
+changes in the longest time).
+
+
+### Entry Transfer
+
+To transfer an entry to another author, simply click the "Transfer ownership of
+this entry" link at the bottom of the edit entry page for an existing entry.
+Then select the author to whom you wish to transfer the entry and click the
+"Transfer" button.
+
+
+### Publish Control
+
+To enable the publish control feature of Workflow for a particular blog, click
+the "Edit Publish Permissions" link at the bottom of the main page for the
+blog. A number of options will be presented. Selected the most appropriate one
+for your setup and click the "Define Permissions" button.
+
+To administer the publish permissions, assuming the current author has
+permission to grant publish permission, simply click the "Edit Publish
+Permissions" link at the bottom of the main page for a blog that has been setup
+for use with Workflow. Select the checkboxes to reflect the permissions desired
+and click the "Update Permissions" button to save the selections.
+
+
+### Template Tags
+
+Workflow provides template tags that provide access to the original author of
+an entry (determined the first time an entry is transferred). For each
+`MTEntryAuthor*` tag that Movable Type provides, Workflow provides a
+corresponding `MTEntryCreator*`.
+
+
+## Installation
+
+1. Move the `Workflow` plugin directory to the MT `plugins` directory.
+2. Move the `Workflow` mt-static directory to the `mt-static/plugins` directory.
+3. Move all of the `.php` files in the php directory to the `php` directory.
+
+Should look like this when installed:
+
+    $MT_HOME/
+        plugins/
+            Workflow/
+                [plugin files here]
+        mt-static/
+            plugins/
+                Workflow/
+                    [plugin static files here]
+        php/
+            [plugin PHP files here]
+
+
+## TODO
+
+* Add transformer callback to insert entry creator column into entry listings.
+* Add transformer callback to alter the entry status dropdown in the entry edit
+  page (to what? remove Scheduled? change "Published" to "Finished" for folks
+  who cannot publish?).
+* Clean up old unused cruft.
+
+
+## Support
+
+This plugin is not an official Six Apart release, and as such support for this
+plugin is not available.
