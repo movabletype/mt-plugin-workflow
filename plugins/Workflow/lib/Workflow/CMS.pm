@@ -191,17 +191,17 @@ sub view_audit_log {
 }
 
 sub save_workflow_order {
-	my $app = shift;
-	my @param = grep { /^\d+_order/ } $app->{'query'}->param;
- 	my $class = $app->model('workflow_step');
- 	for my $key (@param) {
- 		$key =~ /^(\d+)_order/;
- 		my $id = $1;
- 		my $step = $class->load($id);
- 		$step->order($app->param($key));
- 		$step->save || die $step->errstr;
- 	}
-	return list_workflow_step($app);
+    my $app = shift;
+    my @param = grep { /^\d+_order/ } $app->{'query'}->param;
+    my $class = $app->model('workflow_step');
+    for my $key (@param) {
+        $key =~ /^(\d+)_order/;
+        my $id = $1;
+        my $step = $class->load($id);
+        $step->order($app->param($key));
+        $step->save || die $step->errstr;
+    }
+    return list_workflow_step($app);
 }
 
 ###

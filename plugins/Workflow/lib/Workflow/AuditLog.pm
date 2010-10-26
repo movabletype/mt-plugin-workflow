@@ -26,8 +26,8 @@ __PACKAGE__->install_properties ({
     },
 
     defaults => {
-	    'new_step_id'   => 0,
-	    'old_step_id'   => 0,
+        'new_step_id'   => 0,
+        'old_step_id'   => 0,
     },
 
     audit       => 1,

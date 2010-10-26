@@ -21,15 +21,15 @@ use vars qw($VERSION $plugin);
 $VERSION = '1.9.11';
 $plugin = MT::Plugin::Workflow->new ({
         id          => 'Workflow',
-        name		=> 'Workflow',
-        version		=> $VERSION,
-        description	=> 'Workflow can limit publishing rights to editors, can limit specified authors to posting only drafts, and lets an author pass ownership of an entry to any other author or editor with appropriate permissions.  Authors are notified when ownership of an entry is transferred.',
-        plugin_link	=> 'http://www.apperceptive.com/plugins/workflow/',
-        author_name	=> 'Apperceptive, LLC',
-        author_link	=> 'http://www.apperceptive.com/',
+        name        => 'Workflow',
+        version     => $VERSION,
+        description => 'Workflow can limit publishing rights to editors, can limit specified authors to posting only drafts, and lets an author pass ownership of an entry to any other author or editor with appropriate permissions.  Authors are notified when ownership of an entry is transferred.',
+        plugin_link => 'http://www.apperceptive.com/plugins/workflow/',
+        author_name => 'Apperceptive, LLC',
+        author_link => 'http://www.apperceptive.com/',
         doc_link    => 'README.html',
-        blog_config_template	=> 'blog_config.tmpl',
-        settings		=> new MT::PluginSettings ([
+        blog_config_template    => 'blog_config.tmpl',
+        settings        => new MT::PluginSettings ([
             # Whether or not email notifications should be sent out for transfer and publish attempts
             [ 'email_notification', { Default => 1, Scope => 'blog'} ],
             
@@ -161,8 +161,8 @@ sub init_cms_app {
     eval { require MT::CMS::Entry; };
     my $cms_entry = $@ ? 0 : 1;
     $orig_handler = $cms_entry
-    	? \&MT::CMS::Entry::_finish_rebuild_ping
-    	: \&MT::App::CMS::_finish_rebuild_ping;
+        ? \&MT::CMS::Entry::_finish_rebuild_ping
+        : \&MT::App::CMS::_finish_rebuild_ping;
     my $sub = sub {
         my $a = shift;
         my ($entry) = @_;
@@ -184,9 +184,9 @@ sub init_cms_app {
         }
     };
     if ($cms_entry) {
-    	*MT::CMS::Entry::_finish_rebuild_ping = $sub;
+        *MT::CMS::Entry::_finish_rebuild_ping = $sub;
     } else {
-    	*MT::App::CMS::_finish_rebuild_ping = $sub;
+        *MT::App::CMS::_finish_rebuild_ping = $sub;
     }
 }
 
